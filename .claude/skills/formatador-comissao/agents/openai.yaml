@@ -1,0 +1,10 @@
+interface:
+  display_name: Formatador Comissao
+  short_description: Engineering guide for the Protheus commission report formatter
+policy:
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas
+  allow_implicit_invocation: true

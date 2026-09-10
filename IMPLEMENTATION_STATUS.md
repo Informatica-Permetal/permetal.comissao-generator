@@ -132,9 +132,60 @@ src/
       api.ts                   [criado - FormatadorComissaoApi]
     types/
       settings.ts              [criado - AppState, FolderPermissionResult, CompleteFirstRunResult]
-    validation/                (Fase 2: validacao de contrato/cabecalho)
+    validation/                (ainda nao usado pelo renderer/IPC - validacao de contrato vive em main/reports/common ate a Fase 3 precisar expor algo tipado ao renderer)
 ```
+
+## Fase 2 - Contratos de entrada Excel, parsing, validacao, agrupamento e totais (CONCLUIDA)
+
+### O que foi implementado
+
+Biblioteca pura em `src/main/reports/` (ainda nao ligada a nenhuma tela ou IPC - isso e Fase 3):
+
+- **Leitura de `.xlsx`**: `exceljs` (nao o pacote `xlsx`/SheetJS do npm, que esta travado em 0.18.5 com advisories de prototype-pollution/ReDoS nao corrigidos nessa distribuicao; `exceljs` e ativamente mantido e e explicitamente permitido por `architecture.md`: "`xlsx` or a maintained Excel reader"). `decimal.js` para toda a aritmetica de totais.
+- **Normalizacao de cabecalho** (`common/text.ts`): remove NBSP, colapsa espacos, remove acentos (NFD + faixa de diacriticos por code point, sem depender de regex com caracteres Unicode literais no codigo-fonte), normaliza caixa. Localizacao de cabecalho (`common/contractValidation.ts`) escaneia as 5 primeiras linhas preferindo a linha 1, casa por nome normalizado (nunca por posicao), e mantem o cabecalho real (com acento) disponivel para diagnostico.
+- **Contrato Previsao** (`previsao/contract.ts`): os 13 campos exatos de `input-contracts.md`. **Contrato Relacao** (`relacao/contract.ts`): os 15 campos exatos.
+- **Numeros brasileiros** (`common/numbers.ts`): aceita numero nativo do Excel OU string BR (`.` milhar, `,` decimal); `Decimal` sem perda de precisao.
+- **Datas** (`common/dates.ts`): sempre via getters/constructors UTC, nunca locais - o meio-dia UTC dos exports nunca vira o dia anterior/seguinte independente do fuso da maquina.
+- **Identidade** (`common/text.ts` `parseCodeNamePair`): separa "CODIGO - NOME" pelo primeiro `" - "` apenas, preservando zeros a esquerda como texto (nunca convertido a numero).
+- **Deteccao de modo errado**: `WrongModeError` quando o arquivo tem os marcadores do outro modo. **Coluna ausente**: `MissingHeadersError` listando exatamente os cabecalhos faltantes.
+- **Agrupamento** (`common/grouping.ts`): estritamente por `(filial_codigo, vendedor_codigo)`; soma decimal-safe usando **apenas** o campo autoritativo passado pelo chamador - nenhuma outra aritmetica.
+- **Avisos nao bloqueantes**: classificacao Previsao desconhecida, `Tipo de Registro`/`B-E` inesperados na Relacao, nome divergente para o mesmo codigo - nunca filtram/alteram a linha.
+- Nenhuma linha e removida por estar em branco, zerada, negativa ou "parecer duplicada"; uma linha so e pulada se **todas** as celulas mapeadas estiverem vazias (linha fantasma no fim da planilha).
+
+### Confirmacao explicita
+
+- **Previsao**: o unico campo somado para o total do PDF e `Comissao total (liquido)` (`PREVISAO_TOTAL_FIELD_KEY` em `previsao/contract.ts`).
+- **Relacao**: o unico campo somado para o total do PDF e `Valor da Comissao` (`RELACAO_TOTAL_FIELD_KEY` em `relacao/contract.ts`).
+- **Nenhuma formula de comissao foi criada.** Auditoria (`grep`) confirmou zero ocorrencias de multiplicacao/divisao entre `valorBaseParaBaixa`/`valorTotalComissao`/`valorIrrf`/`valorBaseDaComissao`/`percentComissaoSobreVlBase` em todo `src/main/reports/`, e zero uso de `DISTINCT`/`drop_duplicates`/dedupe. Os campos de base/percentual/IRRF sao parseados e guardados apenas para exibicao/auditoria futura (Fase 4), nunca combinados entre si.
+
+### Validacao com os dois arquivos reais anexados
+
+Executada localmente via um teste temporario (`_realFileValidation.test.ts`, **deletado** antes de finalizar a fase - nunca commitado) apontando para os arquivos em `Downloads/`, mais uma soma independente (script fora do repo, sem usar o parser) para descartar bug mascarado:
+
+| Arquivo | Linhas | Grupos (filial+vendedor) | Total (campo autoritativo) | Bate com soma independente? |
+|---|---|---|---|---|
+| Previsao de comissoes.xlsx | 165 | 26 | 6324.00287465011359 | Sim, digito a digito |
+| Relacao de Comissoes.xlsx | 1358 | 38 | 165297.49 | Sim, digito a digito |
+
+Nenhum aviso disparado em nenhum dos dois arquivos (dados observados sao limpos: classificacoes e Tipo de Registro/B-E dentro do esperado). Nenhum dos dois arquivos, nem qualquer trecho de seus dados (nomes de cliente/vendedor, valores), foi copiado para fixture, log persistente ou commit - `git status` confirmado limpo dessas referencias ao final.
+
+### Testes sinteticos versionados
+
+42 testes (`npm run test`), nenhum usa dado real. Fixtures sao geradas em runtime como `.xlsx` de verdade (via `exceljs`, escritos em pasta temporaria e apagados no `afterEach`) por `testSupport/xlsxFixtures.ts` - exercita o mesmo caminho de leitura de arquivo binario que o app usa, sem nenhum binario fixo versionado. Cobrindo, para os dois modos: caminho feliz, colunas reordenadas, cabecalhos com espacos extras/NBSP, zeros a esquerda, numeros brasileiros (incluindo alta precisao), valor em branco/zero/negativo, linha duplicada preservada, varios vendedores, mesmo vendedor em duas filiais, arquivo do modo errado, coluna obrigatoria ausente, e um teste dedicado provando que o total nunca deriva de base x percentual.
+
+### Comandos e resultados
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` | OK |
+| `npm run lint` | OK |
+| `npm run test` | OK - **42/42** testes (7 arquivos) |
+| `npm run build` | OK - bundle do main nao cresceu (9.58 kB) porque o parser ainda nao e importado por nenhum entry point; e codigo testado mas nao ligado a UI/IPC ate a Fase 3 |
+
+### Nota de seguranca de dependencia
+
+`npm audit` reporta 2 avisos moderados de `uuid` (`GHSA-w5hq-g745-h8pq`), puxado transitivamente por `exceljs`. `uuid` e usado pelo `exceljs` apenas ao **escrever** planilhas (geracao de IDs de relacionamento XML); nesta fase so **lemos** `.xlsx`, entao o caminho vulneravel nunca e exercitado. `npm audit fix --force` rebaixaria `exceljs` para 3.4.0 (breaking change) sem necessidade real - nao apliquei. Revisitar quando a Fase 4 (geracao de PDF) ou qualquer escrita de xlsx entrar em cena.
 
 ## Proximo passo
 
-Fase 2 (`references/implementation-plan.md`): contratos de entrada Excel, parsing, validacao, agrupamento e totais (13 campos Previsao / 15 campos Relacao). Nao iniciar sem aprovacao explicita.
+Fase 3 (`references/implementation-plan.md`): UX de importacao (drag/drop, seletor de arquivo, `Abrir pasta de entrada`), watchers das pastas Entrada, e tela de preview antes da geracao - e onde os parsers desta fase finalmente sao ligados a IPC/UI. Nao iniciar sem aprovacao explicita.

@@ -1,9 +1,20 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { join } from 'node:path';
-import { APP_NAME } from '../shared/constants/app';
+import { APP_NAME } from '@shared/constants/app';
+import { resolveAppDataPaths } from './app/paths';
+import { initLogger, log } from './app/logger';
+import { openDatabase } from './storage/database';
+import { registerSettingsHandlers } from './ipc/settingsHandlers';
+
+const paths = resolveAppDataPaths();
+app.setPath('userData', paths.userDataPath);
+app.setPath('logs', paths.logDir);
+app.setName(APP_NAME);
+
+let mainWindow: BrowserWindow | null = null;
 
 function createMainWindow(): void {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     show: false,
@@ -18,7 +29,11 @@ function createMainWindow(): void {
   });
 
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    mainWindow?.show();
+  });
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
   });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -34,7 +49,17 @@ function createMainWindow(): void {
 }
 
 void app.whenReady().then(() => {
-  app.setName(APP_NAME);
+  initLogger(paths.logDir);
+  log('info', 'app ready', { appDataPath: paths.userDataPath, databasePath: paths.databasePath });
+
+  const db = openDatabase(paths.databasePath);
+
+  registerSettingsHandlers({
+    db,
+    paths,
+    getWindow: () => mainWindow
+  });
+
   createMainWindow();
 
   app.on('activate', () => {

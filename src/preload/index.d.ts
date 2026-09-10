@@ -1,7 +1,9 @@
+import type { FormatadorComissaoApi } from '@shared/contracts/api';
+
 export {};
 
 declare global {
   interface Window {
-    api: Record<string, never>;
+    api: FormatadorComissaoApi;
   }
 }

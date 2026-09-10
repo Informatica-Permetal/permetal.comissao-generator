@@ -13,7 +13,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "forceConsistentCasingInFileNames": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["src/shared/*"]
+    }
   },
-  "include": ["src/renderer/src/**/*", "src/shared/**/*"]
+  "include": ["src/renderer/src/**/*", "src/shared/**/*", "src/preload/index.d.ts"]
 }

@@ -16,5 +16,12 @@ export const IPC_CHANNELS = {
 
   pdfOpen: 'pdf:open',
   pdfOpenFolder: 'pdf:open-folder',
-  pdfPrint: 'pdf:print'
+  pdfPrint: 'pdf:print',
+
+  historyList: 'history:list',
+  historyGetBatch: 'history:get-batch',
+  historyDeleteDocument: 'history:delete-document',
+  historyDeleteBatch: 'history:delete-batch',
+  historyRegenerateDocument: 'history:regenerate-document',
+  historyRegenerateBatch: 'history:regenerate-batch'
 } as const;

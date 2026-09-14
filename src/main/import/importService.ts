@@ -82,6 +82,7 @@ async function runImport(request: ImportRequest, deps: ImportServiceDeps, fileNa
       batchId,
       mode,
       sourceOriginalName: fileName,
+      sourcePath,
       workspaceFilePath,
       sourceKind,
       sourceHash,

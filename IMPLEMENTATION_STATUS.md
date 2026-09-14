@@ -349,6 +349,129 @@ Script temporario (deletado, nunca commitado) rodou o fluxo completo real - Entr
 
 **Seguro prosseguir para a Fase 5.**
 
+## Fase 5 - Ciclo de vida completo do lote: arquivamento, rotacao, historico, regenerar, excluir (CONCLUIDA)
+
+**Nao reimplementou nem o parsing (Fase 2) nem a geracao de PDF (Fase 4)**: `generatePrevisaoPdfs`/`generateRelacaoPdfs`, os templates HTML/CSS, `renderHtmlToPdf` e `parsePrevisaoFile`/`parseRelacaoFile` continuam exatamente os mesmos - a Fase 5 os envolve numa orquestracao de ciclo de vida (`main/batches/batchLifecycle.ts`), sem alterar uma linha da logica de parsing ou de layout do PDF.
+
+### Orquestracao do lote (`main/batches/`)
+
+- **`batchLifecycle.ts`** (`runBatchGeneration`): parse (Fase 2, inalterado) -> bloqueio por filial nao configurada (contrato identico ao da Fase 4: nada e persistido, nada e publicado) -> `insertBatch` com `status:'generating'` -> dentro de um bloco try: evacua o ocupante atual de `Gerados` para `Historico` (`evacuateGeradosToHistorico`), gera (Fase 4, inalterado), **verifica cada PDF gerado** (existe e tem tamanho > 0, senao lanca erro), `status:'archiving'`, copia a fonte para `Processados/AAAA/MM/<batchId>/` (nunca move - a copia de trabalho em `Processamento` so e apagada depois de tudo confirmado), remove o original da `Entrada` **somente** se `sourceKind==='entrada'` e o caminho realmente comeca dentro da pasta `Entrada` daquele modo (defensivo contra apagar algo fora do esperado), insere um registro `documents` por PDF gerado, `status:'completed'`. Qualquer excecao no bloco try marca `status:'failed'` e relanca - a copia de trabalho e a fonte externa nunca sao tocadas nesse caminho.
+- **`publishGeneratedDocuments`** foi extraida como funcao compartilhada (evacuar -> gerar -> verificar -> persistir documentos -> atualizar contagem) para ser reutilizada identica tanto pela primeira geracao quanto pela regeneracao (`regenerateService.ts`), evitando duas implementacoes divergentes do mesmo fluxo.
+- **`evacuateGerados.ts`**: move (nao copia) cada PDF hoje em `Gerados` para `Historico/AAAA/MM/<batchId-original>/` (organizado pelo `batchId`/`generatedAt` **do documento sendo movido**, nao do lote novo) e atualiza o `pdf_path` no banco - nunca sobrescreve, nunca perde um lote anterior.
+- **`archiveSource.ts`** / **`archivePaths.ts`** / **`moveFileSafely.ts`**: copia da fonte para `Processados`, resolucao de caminho `AAAA/MM/<batchId>` para `Processados`/`Historico`/`Processamento`, e um `rename` com fallback `copy+delete` para mover entre volumes (`EXDEV`).
+- **`regenerateService.ts`** (`regenerateBatch`/`regenerateDocument`): re-le a fonte **ja arquivada** (`source_archived_path`) com o parser atual, roda `publishGeneratedDocuments` de novo (mesma evacuacao/verificacao/persistencia da geracao original) - o PDF novo publica em `Gerados`; a versao anterior desse mesmo lote vai para `Historico` como qualquer outro ocupante evacuado, entao nenhuma versao e perdida. Se a fonte arquivada nao existe mais, retorna um aviso estruturado sem tocar em nada (o lote `completed` permanece intacto - uma tentativa de regeneracao que falha nunca corrompe um historico ja bom). `regenerateDocument` resolve o lote do documento e regenera o lote inteiro, porque o gerador da Fase 4 sempre renderiza um lote completo de uma vez (nao ha funcao de renderizar um unico grupo isoladamente, e criar uma so para isso seria reimplementar o gerador).
+- **`deleteService.ts`** (`deleteDocument`/`deleteBatch`): usa `shell.trashItem` (Lixeira do Windows, nunca exclusao permanente direta) via dependencia injetada. `deleteDocument` manda so aquele PDF para a lixeira e remove so aquele registro - **nunca** toca a fonte arquivada do lote (outros documentos do mesmo lote podem precisar dela para regenerar depois). `deleteBatch` manda todos os PDFs do lote **e** a fonte arquivada (a copia interna em `Processados`, nunca o arquivo externo original) para a lixeira, remove lote+documentos do banco, e tenta limpar (best-effort, nunca falha a operacao) ate 3 niveis de pastas vazias acima de cada arquivo removido.
+
+### Banco de dados
+
+Nenhuma migracao nova foi necessaria: o schema da Fase 1 (`batches.source_archived_path`, `batches.warning_json`) ja antecipava os campos da Fase 5, so ficaram sem uso ate agora. `storage/batchRepository.ts` ganhou `getBatchById`, `updateBatchStatus`, `updateBatchArchivedPath`, `updateBatchOutputCount`, `deleteBatchRecord`, `listBatchIdsWithDocuments`. Novo `storage/documentRepository.ts`: CRUD completo + `listDocuments` com filtro dinamico (modo/vendedor/filial/busca/data) para a tela de Historico, e `listDocumentsInGerados` (usada pela evacuacao).
+
+### IPC e contrato compartilhado
+
+`reports:generate-pdfs` mudou de assinatura: antes recebia `(mode, filePath)` e fazia uma geracao minima sem arquivamento; agora recebe o `BatchPreview` inteiro (o renderer ja o tem, vindo da previa da Fase 3) e chama `runBatchGeneration` com `batchId`/`sourcePath`/`sourceKind`/`workspaceFilePath` - o **mesmo** `batchId` da previa, preservando a ligacao entre a pasta `Processamento` e o registro final em `Processados`/`documents`. Seis canais novos sob `history:*` (`list`, `get-batch`, `delete-document`, `delete-batch`, `regenerate-document`, `regenerate-batch`), implementados em `main/ipc/historyHandlers.ts` reusando `deleteService`/`regenerateService`/`documentRepository`/`batchRepository` - nenhuma logica nova no handler alem de checar se a pasta raiz esta configurada.
+
+### Tela de Historico
+
+`renderer/src/pages/HistoricoPage.tsx` deixou de ser o placeholder da Fase 1: filtros (modo/busca por arquivo-ou-lote/filial/vendedor/data de-ate), lista agrupada por lote com cabecalho do lote (nome do arquivo, modo, acoes "Gerar novamente (lote)"/"Excluir lote") e uma tabela de documentos por lote com filial/vendedor/linhas/total/data e acoes por documento (Abrir PDF, Abrir local, Imprimir - reusando os mesmos `window.api.pdf.*` ja existentes da Fase 4; Gerar novamente; Excluir). Exclusao (documento ou lote inteiro) pede confirmacao nativa (`window.confirm`) antes de qualquer chamada IPC destrutiva.
+
+### Bug real encontrado e corrigido durante a implementacao
+
+`batchLifecycle.ts` na primeira versao importava e chamava `renderHtmlToPdf` (o renderizador real, que cria uma `BrowserWindow`) diretamente, em vez de recebe-lo como dependencia injetada - quebrando o padrao de testabilidade ja estabelecido pelo proprio `generateReportPdfs.ts` (`GenerateReportPdfsDeps.renderPdf`). Corrigido antes de qualquer teste ser escrito: `renderPdf` agora e um campo obrigatorio de `RunBatchGenerationDeps`, injetado pelo `pdfHandlers.ts`/`historyHandlers.ts` reais com `renderHtmlToPdf` e substituido por uma funcao falsa nos testes.
+
+### Testes sinteticos versionados
+
+23 testes novos (`batchLifecycle.test.ts`, `deleteService.test.ts`, `regenerateService.test.ts`), todos com fixtures `.xlsx` sinteticas geradas em runtime (`reports/testSupport/xlsxFixtures.ts`, reaproveitado da Fase 3) e um `renderPdf`/`trashItem` falso injetado (nenhuma `BrowserWindow`/Lixeira real e tocada pelos testes automatizados). Cobrindo: geracao completa (PDF+arquivamento+persistencia+`completed`), remocao do original da Entrada so apos sucesso, segunda geracao evacuando a primeira para Historico sem sobrescrever, bloqueio por filial nao configurada sem tocar em Gerados/banco, falha durante a geracao marcando `failed` e preservando a copia de trabalho, exclusao de documento preservando a fonte do lote, exclusao de lote completo (PDFs+fonte+registros), erros estruturados para lote/documento inexistente, regeneracao publicando uma nova versao e preservando a anterior no Historico, e aviso estruturado (sem excecao) quando a fonte arquivada foi removida externamente.
+
+### Validacao ponta a ponta com os dois arquivos reais anexados
+
+Script temporario (`main/debugE2E.ts`, **deletado** junto com o gancho em `main/index.ts` antes de finalizar - nunca commitado) rodou dentro do Electron real, cobrindo os 14 cenarios pedidos:
+
+| # | Cenario | Resultado |
+|---|---|---|
+| 1-2 | Geracao a partir de arquivo externo (Previsao e Relacao) | 26 e 38 PDFs gerados, 0 filiais faltando, lote `completed`, arquivo original em Downloads intacto (bytes identicos antes/depois) |
+| 3 | Multiplos PDFs num unico lote | Relacao real gerou 38 documentos distintos num so lote |
+| 2b | Geracao a partir da Entrada | copia na pasta Entrada removida so apos arquivamento confirmado; lote `completed` |
+| 4 | Novo lote move o anterior de Gerados para Historico | confirmado por identidade de lote no banco (nao por nome de arquivo, que e deterministico por data+filial+vendedor e por isso pode coincidir entre lotes do mesmo dia) - os documentos do lote anterior passaram a apontar para `Historico/AAAA/MM/<batchId>/` e o arquivo la existe |
+| 5 | Busca/filtros | filtro por modo, por nome de arquivo/lote e por filial retornaram exatamente o esperado |
+| 6-8 | Abrir PDF / Imprimir / Abrir local | wrappers inalterados da Fase 4 (`shell.openPath`/`print`/`showItemInFolder`) - **nao invocados de propria vontade** nesta automacao para nao abrir janelas do SO/dialogo de impressao sem supervisao; validado indiretamente confirmando que os PDFs-alvo existem e sao validos |
+| 9 | Excluir um documento | PDF foi para a lixeira, registro removido, contagem do lote caiu exatamente 1 |
+| 10 | Fonte do lote permanece apos excluir 1 documento | confirmado - `source_archived_path` do lote Relacao continuou existindo |
+| 11 | Excluir um lote inteiro | todos os PDFs do lote da Entrada + sua fonte arquivada foram para a lixeira, registros de lote e documentos removidos do banco |
+| 12 | Regenerar | lote Relacao regenerado a partir da fonte arquivada, 38 PDFs novos publicados, lote continuou `completed` |
+| 13 | Arquivo repetido (hash) | `previouslyProcessedAt` sinalizado corretamente na terceira importacao do mesmo arquivo Previsao |
+| 14 | Falha durante o arquivamento | bloqueio proposital do diretorio de destino em `Processados` (arquivo no lugar de pasta) fez `runBatchGeneration` lancar excecao real; lote marcado `failed`; copia de trabalho **nao** foi perdida; arquivo original em Downloads continuou intacto |
+
+Um erro de sequenciamento no **proprio script de validacao** (nao no app) apareceu na primeira rodada: o cenario 4 comparava contra os caminhos do lote 1, mas o cenario 2b (geracao pela Entrada, que roda entre 1 e 4) ja tinha evacuado o lote 1 para o Historico antes do cenario 4 rodar - a comparacao certa e contra o ocupante *atual* de Gerados no momento do cenario 4, nao contra o lote 1. Corrigido no script (nao no app) e revalidado - todos os 14 cenarios passaram na rodada seguinte.
+
+### Confirmacao explicita
+
+- **Financeiro inalterado**: Previsao continua somando somente `Comissao total (liquido)`; Relacao continua somando somente `Valor da Comissao`. Nenhuma linha nova de aritmetica foi adicionada em nenhum modulo da Fase 5 - toda a soma continua vindo do `groupRows` da Fase 2, so reempacotada em PDFs novos ou republicados.
+- **Fonte externa nunca tocada**: confirmado por leitura de codigo (`archiveSourceFile` so copia, nunca escreve no `sourcePath`) e pelo teste real - bytes do arquivo em Downloads identicos antes/depois de geracao, geracao repetida e ate do cenario de falha.
+- **Nenhum lote e marcado `completed` prematuramente**: `status` so vira `completed` na ultima linha do bloco try, apos fonte arquivada + todos os PDFs verificados + documentos persistidos; qualquer excecao antes disso deixa o lote em `failed` (nunca em silencio).
+- **Nenhum lote anterior e apagado antes de o novo publicar**: a evacuacao move (nunca apaga) o ocupante de Gerados para Historico **antes** de escrever qualquer PDF novo; se a geracao falhar depois da evacuacao, o lote anterior continua integro em Historico (nunca em Gerados, mas nunca perdido).
+
+### Comandos e resultados
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK - sem erros |
+| `npm run lint` | OK - sem erros/avisos |
+| `npm run test` | OK - **105/105** testes (19 arquivos) |
+| `npm run build` | OK - `out/main` ~79 kB, `out/renderer` ~681 kB |
+
+## Auditoria adversarial pos-Fase 5 (CONCLUIDA)
+
+Nao e uma fase nova - uma revisao adversarial (6 revisores independentes por dimensao, cada achado verificado por um segundo agente instruido a tentar refuta-lo) rodou sobre o codigo da Fase 5 recem-concluida, cobrindo perda de dado, condicoes de corrida, contrato IPC/seguranca, conformidade financeira, corretude de UI e cobertura de teste. **10 achados foram confirmados como reais e corrigidos** (nenhum foi descartado como falso-positivo apos verificacao). Nenhum deles violou o comportamento ja validado no relatorio da Fase 5 acima (financeiro, fonte externa intocada, e os 14 cenarios reais) - todos sao lacunas adicionais que a auditoria achou por baixo desse comportamento correto no caminho feliz.
+
+### Achados de perda de dado (severidade alta/baixa) - CORRIGIDOS
+
+| # | Achado | Correcao |
+|---|---|---|
+| 1 | `evacuateGerados.ts` movia um PDF para o Historico com `join(historicoDir, basename(...))` sem checar colisao - como o nome do PDF e deterministico por data+filial+vendedor, uma segunda evacuacao do MESMO lote no MESMO dia (ex.: regenerar duas vezes) sobrescrevia e destruia permanentemente o PDF historico anterior, violando "arquivos historicos nunca sao sobrescritos" | Passou a usar `resolveUniqueOutputPath` (ja existente em `pdf/outputPath.ts`, o mesmo helper que protege a escrita original em Gerados) - colisao agora ganha sufixo numerico, nunca sobrescreve |
+| 2 | Em `publishGeneratedDocuments`, se um lote com varios documentos tivesse um PDF invalido/vazio, os outros PDFs do MESMO lote ja escritos em disco ficavam orfaos (sem registro em `documents`) - como toda evacuacao/Historico/exclusao so enxerga arquivos via consulta ao banco, esses PDFs reais ficavam presos em Gerados para sempre, invisiveis ao app | O loop de verificacao agora apaga (best-effort) todos os PDFs que essa tentativa escreveu antes de lancar o erro - nenhum arquivo sobra sem registro |
+
+### Achados de concorrencia (severidade alta/media) - CORRIGIDOS
+
+Nenhum dos tres achados abaixo era alcancavel no caminho feliz sequencial ja validado na Fase 5 - todos exigiam duas operacoes assincronas reais (geracao/regeneracao/exclusao) disparadas ao mesmo tempo para o mesmo modo, algo que a tela de Historico permite (os botoes de acao por documento e por lote nao se bloqueavam entre si).
+
+| # | Achado | Correcao |
+|---|---|---|
+| 3 | `regenerateBatch` sem trava: uma `deleteBatch` concorrente podia remover a linha do lote em `batches` enquanto `regenerateBatch` ainda estava renderizando PDFs - ao terminar, `insertDocument` violava a constraint de chave estrangeira, mas os PDFs ja escritos em Gerados ficavam orfaos e sem rollback | Novo `main/batches/modeLock.ts` (mutex assincrono por chave) serializa toda geracao/regeneracao/exclusao do MESMO modo - a segunda operacao so comeca depois que a primeira termina |
+| 4 | `regenerateBatch` sem trava contra si mesma: duas regeneracoes concorrentes do MESMO lote podiam evacuar/gerar/inserir em paralelo, produzindo registros de documento duplicados e uma contagem `output_count` inconsistente ("ultimo a escrever vence") | Mesmo `modeLock.ts` - regeneracoes do mesmo lote (mesmo modo) agora sao estritamente sequenciais |
+| 5 | `evacuateGeradosToHistorico` decide o que mover so consultando o banco, nunca o disco - uma segunda geracao/regeneracao do MESMO modo, comecando antes da primeira inserir seus registros de documento, evacuava "nada" (porque o banco ainda nao sabia dos arquivos da primeira) e escrevia seus proprios PDFs por cima, deixando Gerados com arquivos de dois lotes ao mesmo tempo | Mesmo `modeLock.ts` - elimina a janela de corrida entre "PDF escrito em disco" e "registro inserido no banco" para operacoes concorrentes do mesmo modo |
+
+`modeLock.ts` e um mutex por chave simples (fila de promises encadeadas por `ReportMode`), sem dependencias novas. `runBatchGeneration`, `regenerateBatch`, `deleteBatch` e `deleteDocument` foram reestruturados em um wrapper fino (le o `mode` do lote/documento primeiro, fora da trava) + uma funcao `*Locked` (todo o trabalho que muta arquivos/banco, dentro da trava) - a funcao `*Locked` sempre re-busca o registro fresco do banco, entao um lote apagado entre a checagem inicial e a aquisicao da trava vira "nao encontrado" de forma limpa, nunca uma excecao.
+
+### Achado de UI (severidade media) - CORRIGIDO
+
+| # | Achado | Correcao |
+|---|---|---|
+| 6 | O balao de mensagem de acao na tela de Historico (`.historico-page__message`) tinha uma unica cor verde de sucesso fixa, usada tanto para mensagens de sucesso quanto de falha (ex.: "Falha ao excluir o documento." aparecia com a mesma cara de "2 PDF(s) regenerado(s) com sucesso.") - um usuario podia ler uma falha como confirmacao de que a acao destrutiva funcionou | `actionMessage` passou a carregar `{kind: 'success' \| 'error', text}`; nova classe `.historico-page__message--error` (vermelho, mesmo padrao ja usado em `.import-page__error`) e aplicada quando `kind === 'error'` |
+
+De brinde, os botoes de acao por documento e por lote (Gerar novamente/Excluir) passaram a se desabilitar mutuamente dentro do mesmo lote (`isBatchBusy`) - antes, uma acao no lote inteiro nao desabilitava os botoes dos documentos individuais desse lote e vice-versa, permitindo o clique duplo que alimentava os achados #3/#4 do lado do servidor (agora inofensivo gracas ao `modeLock`, mas a UI tambem foi corrigida para nao enfileirar cliques sem necessidade).
+
+### Achados de cobertura de teste (severidade alta/media) - CORRIGIDOS
+
+| # | Achado | Teste novo/fortalecido |
+|---|---|---|
+| 7 | Nenhum teste em `batchLifecycle.test.ts`/`regenerateService.test.ts`/`deleteService.test.ts` semeava um lote com mais de um documento - "lote com varios PDFs" (item 3 do checklist original da Fase 5) e "excluir um documento preservando os IRMAOS do mesmo lote" (item 5) nao eram realmente provados | `deleteService.test.ts`: novo teste com um lote de 2 documentos, excluindo um e confirmando que o outro (registro + PDF) continua intacto |
+| 8 | O teste de "filial nao configurada" comecava com Gerados vazio, entao nunca provava que uma importacao bloqueada deixa um lote ja publicado intocado | `batchLifecycle.test.ts`: novo teste publica um lote valido primeiro, depois roda uma importacao bloqueada do mesmo modo, e confirma que o PDF/registro do lote publicado continuam exatamente como estavam |
+| 9 | Nenhum teste combinava `sourceKind: 'entrada'` com uma falha de geracao/arquivamento - o unico teste de falha usava fonte externa | `batchLifecycle.test.ts`: novo teste forca falha do `renderPdf` com uma fonte da Entrada e confirma que o arquivo original da Entrada sobrevive (so e removido apos sucesso) |
+| (achado #2 acima) | Sem teste para PDFs orfaos em lote com varios documentos | `batchLifecycle.test.ts`: novo teste com 2 documentos onde o segundo falha na verificacao, confirmando que Gerados fica vazio (zero arquivos orfaos) apos a falha |
+| (achado #1 acima) | Sem teste de regressao para a sobrescrita no Historico | Novo arquivo `evacuateGerados.test.ts`: reproduz duas evacuacoes do mesmo lote no mesmo dia e confirma que o PDF historico original preserva seu conteudo |
+| (achados #3/#4/#5 acima) | Sem teste de concorrencia | Novo `modeLock.test.ts` (3 testes unitarios do mutex) + dois testes novos em `regenerateService.test.ts`: duas regeneracoes concorrentes do mesmo lote (confirma serializacao, sem duplicar/corromper Gerados) e regenerar+excluir o mesmo lote ao mesmo tempo (confirma que nunca sobra PDF orfao nem excecao nao tratada) |
+
+### Comandos e resultados
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK - sem erros |
+| `npm run lint` | OK - sem erros/avisos |
+| `npm run test` | OK - **115/115** testes (21 arquivos, +10 desde o relatorio original da Fase 5) |
+| `npm run build` | OK - `out/main` ~81 kB, `out/renderer` ~681 kB |
+
+**Seguro prosseguir para a Fase 6.**
+
 ## Proximo passo
 
-Fase 5 (arquivamento/rotacao Gerados->Historico, tela de Historico, regenerar, excluir) ainda nao implementada. `batches` ja recebe um registro por geracao bem-sucedida (necessario para a deteccao de arquivo repetido da Fase 3), mas isso e so o minimo pedido - nenhuma rotacao de pastas, nenhuma UI de historico, nenhum regenerar/excluir foi feito. Nao iniciar sem aprovacao explicita.
+Fase 6 ainda nao implementada (empacotamento/instalador Windows e demais itens fora do escopo das Fases 1-5, conforme `implementation-plan.md`). Nao iniciar sem aprovacao explicita.

@@ -20,6 +20,8 @@ export interface BatchPreview {
   batchId: string;
   mode: ReportMode;
   sourceOriginalName: string;
+  /** Absolute path of the original file (Entrada or external) - never written to, only read. */
+  sourcePath: string;
   workspaceFilePath: string;
   sourceKind: SourceKind;
   sourceHash: string;

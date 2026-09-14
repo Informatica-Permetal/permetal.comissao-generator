@@ -258,4 +258,69 @@ button:disabled {
 .import-page__row-actions {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
+}
+
+.historico-page__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  background: #ffffff;
+  border: 1px solid #d7dae1;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.historico-page__filters label {
+  display: grid;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: #4b5262;
+}
+
+.historico-page__filters input,
+.historico-page__filters select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid #c4c9d4;
+  border-radius: 4px;
+}
+
+.historico-page__message {
+  color: #1f6f3f;
+  background: #eaf7ef;
+  border: 1px solid #a9dcbb;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 12px 0;
+}
+
+.historico-page__message--error {
+  color: #b3261e;
+  background: #fdecea;
+  border-color: #f0b4ae;
+}
+
+.historico-page__batch {
+  background: #ffffff;
+  border: 1px solid #d7dae1;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.historico-page__batch-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.historico-page__batch-mode {
+  color: #4b5262;
+  font-size: 0.85rem;
 }

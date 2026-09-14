@@ -7,6 +7,7 @@ import { openDatabase } from './storage/database';
 import { registerSettingsHandlers } from './ipc/settingsHandlers';
 import { registerCompanyProfileHandlers } from './ipc/companyProfileHandlers';
 import { registerPdfHandlers } from './ipc/pdfHandlers';
+import { registerHistoryHandlers } from './ipc/historyHandlers';
 import { registerImportHandlers, startImportWatchers, stopImportWatchers } from './ipc/importHandlers';
 import { seedDefaultCompanyProfiles } from './companies/seedCompanyProfiles';
 import { getReportRoot } from './storage/settingsRepository';
@@ -79,6 +80,7 @@ void app.whenReady().then(() => {
     getWindow: () => mainWindow
   });
   registerImportHandlers({ db });
+  registerHistoryHandlers({ db });
 
   const existingReportRoot = getReportRoot(db);
   if (existingReportRoot) {

@@ -94,7 +94,7 @@ export default function ImportPage({
     const preview = state.preview;
     setState({ status: 'generating', preview });
     try {
-      const result = await window.api.reports.generatePdfs(mode, preview.workspaceFilePath);
+      const result = await window.api.reports.generatePdfs(preview);
       setState({ status: 'generated', preview, result });
     } catch (error) {
       setState({

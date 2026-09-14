@@ -21,7 +21,7 @@ const api: FormatadorComissaoApi = {
     openEntradaFolder: (mode) => ipcRenderer.invoke(IPC_CHANNELS.reportsOpenEntradaFolder, mode),
     previewImport: (mode, sourcePath, sourceKind) =>
       ipcRenderer.invoke(IPC_CHANNELS.reportsPreviewImport, mode, sourcePath, sourceKind),
-    generatePdfs: (mode, filePath) => ipcRenderer.invoke(IPC_CHANNELS.reportsGeneratePdfs, mode, filePath),
+    generatePdfs: (preview) => ipcRenderer.invoke(IPC_CHANNELS.reportsGeneratePdfs, preview),
     onEntradaFileDetected: (callback) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: EntradaFileDetectedPayload): void =>
         callback(payload);
@@ -33,6 +33,14 @@ const api: FormatadorComissaoApi = {
     open: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.pdfOpen, filePath),
     openFolder: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.pdfOpenFolder, filePath),
     print: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.pdfPrint, filePath)
+  },
+  history: {
+    list: (filters) => ipcRenderer.invoke(IPC_CHANNELS.historyList, filters),
+    getBatch: (batchId) => ipcRenderer.invoke(IPC_CHANNELS.historyGetBatch, batchId),
+    deleteDocument: (documentId) => ipcRenderer.invoke(IPC_CHANNELS.historyDeleteDocument, documentId),
+    deleteBatch: (batchId) => ipcRenderer.invoke(IPC_CHANNELS.historyDeleteBatch, batchId),
+    regenerateDocument: (documentId) => ipcRenderer.invoke(IPC_CHANNELS.historyRegenerateDocument, documentId),
+    regenerateBatch: (batchId) => ipcRenderer.invoke(IPC_CHANNELS.historyRegenerateBatch, batchId)
   },
   files: {
     getPathForFile: (file) => webUtils.getPathForFile(file)

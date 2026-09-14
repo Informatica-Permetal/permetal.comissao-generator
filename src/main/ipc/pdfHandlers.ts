@@ -1,19 +1,13 @@
-import { randomUUID } from 'node:crypto';
-import { basename } from 'node:path';
 import { app, dialog, ipcMain, type BrowserWindow } from 'electron';
 import type { DatabaseSync } from 'node:sqlite';
 import { IPC_CHANNELS } from '@shared/contracts/ipc';
-import type { ReportMode } from '@shared/constants/folders';
 import type { GenerateReportResult, PrintPdfResult } from '@shared/types/pdf';
+import type { BatchPreview } from '@shared/types/import';
 import { getCompanyProfile } from '../companies/companyProfileRepository';
 import { getReportRoot } from '../storage/settingsRepository';
-import { insertBatch } from '../storage/batchRepository';
-import { computeFileHashSync } from '../import/computeFileHash';
-import { parsePrevisaoFile } from '../reports/previsao/parser';
-import { parseRelacaoFile } from '../reports/relacao/parser';
-import { generatePrevisaoPdfs, generateRelacaoPdfs } from '../pdf/generateReportPdfs';
 import { renderHtmlToPdf } from '../pdf/renderPdf';
 import { openContainingFolder, openPdf, printPdf } from '../pdf/pdfActions';
+import { runBatchGeneration } from '../batches/batchLifecycle';
 import { log } from '../app/logger';
 
 interface PdfHandlerDeps {
@@ -38,55 +32,35 @@ export function registerPdfHandlers(deps: PdfHandlerDeps): void {
 
   ipcMain.handle(
     IPC_CHANNELS.reportsGeneratePdfs,
-    async (_event, mode: ReportMode, filePath: string): Promise<GenerateReportResult> => {
+    async (_event, preview: BatchPreview): Promise<GenerateReportResult> => {
       const reportRoot = getReportRoot(db);
       if (!reportRoot) {
         throw new Error('Pasta raiz de relatorios ainda nao configurada.');
       }
 
       const lookupCompanyProfile = (branchCode: string) => getCompanyProfile(db, branchCode);
-      const generatedAt = new Date();
 
-      let result: GenerateReportResult;
-      let sourceRowCount: number;
-
-      if (mode === 'Previsao') {
-        const parseResult = await parsePrevisaoFile(filePath);
-        sourceRowCount = parseResult.rows.length;
-        result = await generatePrevisaoPdfs(parseResult, {
+      const result = await runBatchGeneration(
+        {
+          mode: preview.mode,
+          batchId: preview.batchId,
+          sourcePath: preview.sourcePath,
+          sourceKind: preview.sourceKind,
+          workspaceFilePath: preview.workspaceFilePath
+        },
+        {
+          db,
           reportRoot,
-          generatedAt,
           lookupCompanyProfile,
+          appVersion: app.getVersion(),
           renderPdf: renderHtmlToPdf
-        });
-      } else {
-        const parseResult = await parseRelacaoFile(filePath);
-        sourceRowCount = parseResult.rows.length;
-        result = await generateRelacaoPdfs(parseResult, {
-          reportRoot,
-          generatedAt,
-          lookupCompanyProfile,
-          renderPdf: renderHtmlToPdf
-        });
-      }
-
-      if (result.generated.length > 0) {
-        insertBatch(db, {
-          id: randomUUID(),
-          mode,
-          sourceOriginalName: basename(filePath),
-          sourceHash: computeFileHashSync(filePath),
-          importedAt: generatedAt.toISOString(),
-          sourceRowCount,
-          outputCount: result.generated.length,
-          status: 'completed',
-          appVersion: app.getVersion()
-        });
-      }
+        }
+      );
 
       log('info', 'pdfs generated', {
-        mode,
-        sourceFile: filePath,
+        mode: preview.mode,
+        batchId: preview.batchId,
+        sourceFile: preview.sourceOriginalName,
         generatedCount: result.generated.length,
         missingBranchCodes: result.missingBranchCodes
       });

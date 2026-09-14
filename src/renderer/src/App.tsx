@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { APP_NAME } from '@shared/constants/app';
 import type { AppState } from '@shared/types/settings';
+import type { ReportMode } from '@shared/constants/folders';
 import FirstRunPage from './pages/FirstRunPage';
 import HomePage, { type HomeDestination } from './pages/HomePage';
 import PrevisaoPage from './pages/PrevisaoPage';
@@ -10,10 +11,16 @@ import SettingsPage from './pages/SettingsPage';
 
 type View = HomeDestination | 'configuracoes';
 
+interface PendingImport {
+  mode: ReportMode;
+  sourcePath: string;
+}
+
 export default function App() {
   const [appState, setAppState] = useState<AppState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [view, setView] = useState<View>('home');
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
 
   useEffect(() => {
     window.api.settings
@@ -45,6 +52,11 @@ export default function App() {
     return <FirstRunPage initialState={appState} onCompleted={setAppState} />;
   }
 
+  function handleSwitchMode(mode: ReportMode, sourcePath: string): void {
+    setPendingImport({ mode, sourcePath });
+    setView(mode === 'Previsao' ? 'previsao' : 'relacao');
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -54,8 +66,24 @@ export default function App() {
         </button>
       </header>
       {view === 'home' && <HomePage onNavigate={setView} />}
-      {view === 'previsao' && <PrevisaoPage onBack={() => setView('home')} />}
-      {view === 'relacao' && <RelacaoPage onBack={() => setView('home')} />}
+      {view === 'previsao' && (
+        <PrevisaoPage
+          onBack={() => setView('home')}
+          onGoToSettings={() => setView('configuracoes')}
+          onSwitchMode={handleSwitchMode}
+          initialSourcePath={pendingImport?.mode === 'Previsao' ? pendingImport.sourcePath : null}
+          onInitialSourceConsumed={() => setPendingImport(null)}
+        />
+      )}
+      {view === 'relacao' && (
+        <RelacaoPage
+          onBack={() => setView('home')}
+          onGoToSettings={() => setView('configuracoes')}
+          onSwitchMode={handleSwitchMode}
+          initialSourcePath={pendingImport?.mode === 'Relacao' ? pendingImport.sourcePath : null}
+          onInitialSourceConsumed={() => setPendingImport(null)}
+        />
+      )}
       {view === 'historico' && <HistoricoPage onBack={() => setView('home')} />}
       {view === 'configuracoes' && <SettingsPage state={appState} onBack={() => setView('home')} />}
     </div>

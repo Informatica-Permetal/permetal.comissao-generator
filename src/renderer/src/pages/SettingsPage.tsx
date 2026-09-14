@@ -1,4 +1,5 @@
 import type { AppState } from '@shared/types/settings';
+import CompanyProfilesSection from '../components/CompanyProfilesSection';
 
 interface SettingsPageProps {
   state: AppState;
@@ -21,6 +22,14 @@ export default function SettingsPage({ state, onBack }: SettingsPageProps) {
         <dt>Versao</dt>
         <dd>{state.appVersion}</dd>
       </dl>
+
+      <h3>Empresas / Filiais</h3>
+      <p className="settings-page__hint">
+        Cada filial pode reutilizar a mesma logo de outra filial da mesma empresa. Campos vazios ficam em
+        branco no PDF - nada e inventado automaticamente.
+      </p>
+      <CompanyProfilesSection />
+
       <button type="button" onClick={onBack}>
         Voltar
       </button>

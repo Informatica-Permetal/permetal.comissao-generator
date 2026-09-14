@@ -114,3 +114,148 @@ button:disabled {
   margin: 0;
   word-break: break-all;
 }
+
+.settings-page__hint {
+  color: #4b5262;
+  font-size: 0.85rem;
+  max-width: 640px;
+}
+
+.company-profiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.company-profiles__card {
+  background: #ffffff;
+  border: 1px solid #d7dae1;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.company-profiles__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.company-profiles__logo {
+  height: 40px;
+  width: auto;
+  max-width: 140px;
+  object-fit: contain;
+}
+
+.company-profiles__logo--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  background: #f4f5f7;
+  border: 1px dashed #c4c9d4;
+  border-radius: 4px;
+  color: #8a92a3;
+  font-size: 0.75rem;
+}
+
+.company-profiles__fields {
+  display: grid;
+  gap: 8px;
+}
+
+.company-profiles__fields label {
+  display: grid;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: #4b5262;
+}
+
+.company-profiles__fields input {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid #c4c9d4;
+  border-radius: 4px;
+}
+
+.company-profiles__error {
+  color: #b3261e;
+}
+
+.import-page__dropzone {
+  border: 2px dashed #c4c9d4;
+  border-radius: 10px;
+  padding: 32px;
+  text-align: center;
+  background: #ffffff;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.import-page__dropzone--active {
+  border-color: #3b6fe0;
+  background: #eef3fd;
+}
+
+.import-page__actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.import-page__hint {
+  color: #4b5262;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.import-page__error {
+  color: #b3261e;
+}
+
+.import-page__warning {
+  color: #8a5300;
+  background: #fff6e5;
+  border: 1px solid #f0d38a;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 12px 0;
+}
+
+.import-page__summary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 16px 0;
+}
+
+.import-page__summary dt {
+  font-weight: 600;
+  color: #4b5262;
+}
+
+.import-page__summary dd {
+  margin: 0;
+}
+
+.import-page__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  background: #ffffff;
+}
+
+.import-page__table th,
+.import-page__table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e3e3e3;
+  font-size: 0.85rem;
+}
+
+.import-page__row-actions {
+  display: flex;
+  gap: 6px;
+}

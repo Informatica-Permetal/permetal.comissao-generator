@@ -1,11 +1,14 @@
-import PlaceholderPage from '../components/PlaceholderPage';
+import type { ReportMode } from '@shared/constants/folders';
+import ImportPage from '../components/ImportPage';
 
-export default function PrevisaoPage({ onBack }: { onBack: () => void }) {
-  return (
-    <PlaceholderPage
-      title="Previsao de Comissoes"
-      message="A importacao e leitura do relatorio Protheus sera implementada na Fase 2."
-      onBack={onBack}
-    />
-  );
+interface PrevisaoPageProps {
+  onBack: () => void;
+  onGoToSettings: () => void;
+  onSwitchMode: (mode: ReportMode, sourcePath: string) => void;
+  initialSourcePath?: string | null;
+  onInitialSourceConsumed?: () => void;
+}
+
+export default function PrevisaoPage(props: PrevisaoPageProps) {
+  return <ImportPage mode="Previsao" title="Previsao de Comissoes" {...props} />;
 }

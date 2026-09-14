@@ -186,6 +186,114 @@ Nenhum aviso disparado em nenhum dos dois arquivos (dados observados sao limpos:
 
 `npm audit` reporta 2 avisos moderados de `uuid` (`GHSA-w5hq-g745-h8pq`), puxado transitivamente por `exceljs`. `uuid` e usado pelo `exceljs` apenas ao **escrever** planilhas (geracao de IDs de relacionamento XML); nesta fase so **lemos** `.xlsx`, entao o caminho vulneravel nunca e exercitado. `npm audit fix --force` rebaixaria `exceljs` para 3.4.0 (breaking change) sem necessidade real - nao apliquei. Revisitar quando a Fase 4 (geracao de PDF) ou qualquer escrita de xlsx entrar em cena.
 
+## Fase 4 - Perfis de empresa/filial, logos, template de PDF, geracao, impressao (CONCLUIDA)
+
+Implementada a pedido explicito do usuario pulando a Fase 3 formal (UX de import/drag-drop/watcher/pre-generation preview completa continua pendente). Para tornar Abrir PDF/Abrir pasta/Imprimir testaveis de verdade, `PrevisaoPage`/`RelacaoPage` ganharam um harness minimo (`GenerateReportPanel`: escolher `.xlsx`, gerar, listar resultado com acoes) - explicitamente **nao** e a UX completa de import (sem drag-drop, sem watcher de `Entrada`, sem tabela de preview formal, sem arquivamento) - isso continua Fase 3/5.
+
+### Empresa/marca x filial x logo
+
+`company_profiles` (schema da Fase 1) ganhou repositorio real (`companies/companyProfileRepository.ts`) e seed idempotente (`companies/seedCompanyProfiles.ts`) para as 4 filiais observadas nos dados: 0103/0104 -> marca PERMETAL, 0105 -> METALGRADE, 0106 -> MG_ZINC (logo `MGZINC.png`, nome `MG` como catalogado). As 4 logos reais fornecidas foram movidas de `logos/` (pasta ad-hoc) para `resources/brand-logos/` (versionado - sao ativos de marca, nao dado de cliente). No seed, o arquivo de marca e copiado para `<userData>/logos/<MARCA>.png`; 0103 e 0104 apontam para o **mesmo arquivo fisico**, provando que a mesma logo e reutilizavel entre filiais da mesma marca. `TRES-S.png` fica disponivel mas sem filial associada (nenhum codigo Tres-S foi observado nos dados - nao inventei um). Nenhum dado cadastral (CNPJ/endereco/razao social) foi inventado; os campos ficam `null` ate o usuario preencher em Configuracoes.
+
+### Geracao de PDF
+
+`main/pdf/`: view-models (`previsaoViewModel.ts`/`relacaoViewModel.ts`) convertem `DocumentGroup` + `CompanyProfile` em texto/moeda ja formatados (nenhuma aritmetica alem da soma ja existente do Fase 2); templates HTML/CSS (`htmlTemplate/`) montam o documento completo; `renderPdf.ts` chama `webContents.printToPDF` com `headerTemplate`/`footerTemplate` nativos do Chromium para "Pagina X de Y" e um cabecalho compacto de continuacao; `generateReportPdfs.ts` orquestra grupo -> PDF, **bloqueando a geracao inteira** se qualquer filial do arquivo nao estiver configurada (retorna `missingBranchCodes`, nada e gerado ate isso ser resolvido). PDFs sao salvos em `<raiz>/<Modo>/Gerados/` com nome deterministico e colisao tratada com sufixo numerico (nunca sobrescreve).
+
+**Bug real encontrado e corrigido durante a inspecao**: `app.getAppPath()` resolve para `out/main` (pasta do script), nao a raiz do projeto - verificado empiricamente. Corrigido usando `__dirname` relativo, no mesmo padrao ja usado para o caminho do preload.
+
+**Bug de plataforma encontrado e corrigido**: criar/destruir varias `BrowserWindow` ocultas em sequencia, sem nenhuma janela jamais mostrada, falha de forma intermitente ao carregar arquivo local nesta maquina (`ERR_FAILED`) - reproduzido isoladamente. Com uma janela normal (como a `mainWindow` real do app) criada antes, o mesmo padrao funciona perfeitamente. Ainda assim adotei uma janela utilitaria unica reaproveitada (`pdf/utilityWindow.ts`) para renderizacao e impressao, por ser mais robusta (funciona nos dois cenarios) e mais barata (evita recriar processo de renderer a cada PDF).
+
+### Acoes do PDF
+
+`pdf/pdfActions.ts`: `Abrir PDF` (`shell.openPath`), `Abrir pasta` (`shell.showItemInFolder`), `Imprimir` (carrega o PDF no visualizador nativo do Chromium na janela utilitaria e chama `webContents.print` com dialogo normal do SO). Verificado empiricamente que `loadFile` de um `.pdf` funciona e que `printToPDF` a partir dele reproduz o conteudo fielmente antes de confiar no fluxo de impressao.
+
+### Validacao visual com PDFs reais
+
+Gerados via um harness temporario (`pdf/_debugGenerate.ts`, **deletado** antes de finalizar - nunca commitado) que constroi fixtures sinteticas `.xlsx` e roda o pipeline completo real (parse -> agrupa -> gera) dentro do Electron de verdade, cobrindo as 4 filiais/marcas, 1 pagina, multi-pagina, **11 paginas** (>10 pedido explicitamente), nome de cliente longo, campos em branco, linhas duplicadas e classificacao desconhecida ("Nota de Debito"). Inspecao visual pagina a pagina confirmou: logos com proporcao preservada (nunca esticadas) para Permetal/Metalgrade/MG Zinc; cabecalho completo so na pagina 1, cabecalho compacto nas seguintes; cabecalho de coluna repetido em toda pagina; secoes de classificacao preservadas em ordem, incluindo a desconhecida; linha duplicada e linha em branco preservadas sem alterar a contagem; nome longo nao quebra o layout; e o caso mais dificil - quando total+assinatura nao cabiam no fim da pagina 10, o bloco inteiro (nunca dividido) migrou para uma pagina 11 nova, exatamente como exigido. Nenhum dado real foi usado nessa validacao; nada disso foi commitado.
+
+### Confirmacao explicita
+
+- Previsao: unico campo somado para o total do PDF = `Comissao total (liquido)` (`TOTAL DA PREVISAO`).
+- Relacao: unico campo somado para o total do PDF = `Valor da Comissao` (`TOTAL DA COMISSAO`).
+- Nenhuma formula de comissao foi criada nesta fase: os view-models so formatam (moeda/data/percentual) valores ja calculados pelo Protheus e ja somados pelo `groupRows` da Fase 2; `% Comissao` e exibido exatamente como veio da fonte.
+
+### Comandos e resultados
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` | OK |
+| `npm run lint` | OK |
+| `npm run test` | OK - **78/78** testes (14 arquivos) |
+| `npm run build` | OK - `out/main` 54.34 kB (cresceu porque o parser+PDF agora sao alcancaveis pelos handlers IPC reais) |
+
+## Fase 3 - UX de importacao real (drag/drop, seletor, watcher, previa) (CONCLUIDA)
+
+Implementada fora de ordem (depois da Fase 4, a pedido do usuario) para substituir o harness minimo da Fase 4. **Nada da Fase 4 foi reescrito**: o gerador (`generatePrevisaoPdfs`/`generateRelacaoPdfs`), os templates, os perfis de empresa/filial e as acoes do PDF continuam exatamente os mesmos - a Fase 3 so passou a chama-los a partir de um fluxo de importacao real em vez do harness.
+
+### Servico central de importacao
+
+`main/import/importService.ts` (`importFile`) e o **unico** ponto de entrada usado por drag-and-drop, `+ Selecionar arquivo` e pelo watcher da pasta `Entrada` - os tres chamam o mesmo handler IPC (`reports:preview-import`), que chama a mesma funcao. Ele:
+
+1. rejeita `~$*` (arquivo temporario do Excel) e nao-`.xlsx` antes de tocar no arquivo;
+2. impede duas importacoes concorrentes do mesmo `sourcePath` (`Set` em memoria);
+3. cria um workspace isolado em `<raiz>/<Modo>/Processamento/<batchId>/` e copia o arquivo para la - o arquivo externo nunca e escrito;
+4. calcula SHA-256 do arquivo copiado;
+5. usa os parsers **ja existentes da Fase 2** (`parsePrevisaoFile`/`parseRelacaoFile`) - zero parsing novo;
+6. converte `WrongModeError`/`MissingHeadersError` (lancados pelo parser) em um resultado estruturado serializavel por IPC (`{ ok: false, error: {...} }`), porque um `Error` lancado perde propriedades customizadas ao atravessar `ipcMain.handle` - verificado que so `message`/`name` sobrevivem, entao as classes de erro da Fase 2 nao podiam ser repassadas diretamente;
+7. reusa `findUnconfiguredBranchCodes` (extraido do `generateReportPdfs.ts` da Fase 4 para um modulo compartilhado `companies/branchConfiguration.ts`, sem mudar o comportamento - os testes da Fase 4 continuam passando identicos) para listar filiais nao configuradas na previa;
+8. consulta `batches` (tabela ja existente desde a Fase 1) por `source_hash` para sinalizar "ja processado em `<data>`" sem bloquear.
+
+O registro em `batches` acontece apos uma geracao bem-sucedida (dentro do handler `reports:generate-pdfs` ja existente da Fase 4, so ganhou uma chamada a mais no final) - nao apos a previa, para nao marcar como "processado" um arquivo que o usuario so espiou.
+
+### Watcher da pasta Entrada
+
+`main/import/entradaWatcher.ts` usa `chokidar` (nao estava instalado, adicionado nesta fase), um watcher por modo, `awaitWriteFinish` para esperar o arquivo estabilizar, filtro de `~$*`/nao-`.xlsx`. **Bug real encontrado e corrigido**: o filtro `ignored` do chokidar tambem e chamado para a propria pasta raiz vigiada, sem `stats` - minha primeira versao rejeitava a pasta "Entrada" por ela nao terminar em `.xlsx`, o que silenciosamente desativava o watcher inteiro. Reproduzido isolado, corrigido tratando nomes sem extensao como "deixa passar" (nunca sao os arquivos que procuramos). O watcher so notifica o caminho para o renderer (`reports:entrada-file-detected`, `webContents.send`); a UI reage chamando a mesma previa usada por drag-and-drop/seletor - reforcando que e o mesmo servico, nao um quarto caminho.
+
+### Tela de previa (somente leitura)
+
+`renderer/src/components/ImportPage.tsx` substitui o harness. Mostra modo, arquivo, total de linhas, vendedores, filiais, documentos, avisos, aviso de "ja processado" (nao bloqueia), e a tabela filial/codigo/vendedor/linhas/total. Nenhum input editavel nos valores - a tabela e puramente `<td>`, sem checkbox, sem botao de exclusao de linha. Filial nao configurada bloqueia o botao "Gerar PDFs" (`disabled`) e mostra um botao "Ir para Configuracoes" que navega para a tela de perfis ja existente da Fase 4. Arquivo de modo errado mostra "Processar como `<modo detectado>`", que troca de pagina e reaproveita o mesmo `sourcePath`.
+
+`window.api.files.getPathForFile` foi adicionado ao preload (`webUtils.getPathForFile`, a API atual do Electron - `File.path` esta descontinuado) para resolver o caminho real de um arquivo solto via drag-and-drop.
+
+### Harness da Fase 4 removido
+
+`renderer/src/components/GenerateReportPanel.tsx` foi deletado; `PrevisaoPage`/`RelacaoPage` agora renderizam `ImportPage`. Nenhuma referencia ao harness permanece no codigo (`grep` confirmado). So existe hoje um fluxo de importacao.
+
+### Confirmacao explicita
+
+- **Nenhum calculo proprio de comissao foi introduzido**: o servico de importacao so orquestra copia de arquivo, hash, chamada aos parsers da Fase 2 e leitura dos totais ja calculados por `groupRows`; nunca soma, multiplica ou reconstroi um valor.
+- **O gerador da Fase 4 foi reutilizado, nao duplicado**: `reports:generate-pdfs` continua sendo a unica funcao que gera PDF, chamada tanto pelo fluxo antigo (harness, removido) quanto pelo novo (`ImportPage`), com o `workspaceFilePath` da previa como entrada.
+
+### Testes sinteticos versionados
+
+`importService.test.ts` (10 testes: caminho feliz Previsao/Relacao, modo errado nas duas direcoes, coluna ausente, arquivo temporario, filial nao configurada, arquivo repetido/hash, varios vendedores e filiais, processamento concorrente do mesmo path) e `entradaWatcher.test.ts` (3 testes com chokidar real sobre pastas temporarias reais: deteccao, roteamento por modo, filtro de `~$`/nao-`.xlsx`).
+
+### Validacao com os dois arquivos reais anexados
+
+Rodei um script temporario (deletado, nunca commitado) chamando `importFile` e o gerador de verdade contra os arquivos reais dentro do Electron real, cobrindo os 13 cenarios pedidos:
+
+| Cenario | Resultado |
+|---|---|
+| Previsao correta | 165 linhas, 18 vendedores, 4 filiais, 26 documentos, 0 filiais faltando |
+| Relacao correta | 1358 linhas, 27 vendedores, 4 filiais, 38 documentos, 0 filiais faltando |
+| Relacao no modo Previsao | `wrongMode`, detectado Relacao |
+| Previsao no modo Relacao | `wrongMode`, detectado Previsao |
+| Filial nao configurada | as 4 filiais reais corretamente listadas como faltando quando o lookup nao encontra nenhuma |
+| Arquivo temporario `~$` | rejeitado antes de qualquer leitura |
+| Geracao real | 26 PDFs gerados de verdade reusando o gerador da Fase 4 |
+| Arquivo repetido | `previouslyProcessedAt` populado corretamente apos a geracao registrar o lote |
+| Watcher | detectou o arquivo real copiado numa pasta Entrada real |
+
+Vendedores em mais de uma filial (cenario 12) fica provado pelos proprios numeros: 18 vendedores unicos produzindo 26 documentos so e possivel se varios vendedores aparecem em mais de uma filial - consistente com o teste sintetico dedicado que ja cobre esse caso isoladamente. Drag-and-drop e o dialogo do seletor de arquivo em si (gestos de UI) nao sao automatizaveis neste ambiente, mas chamam exatamente o mesmo `previewImport` validado acima - a logica e identica, so a origem do clique muda. Nenhum dado real foi copiado para fixtures ou logs; script e artefatos de teste apagados ao final.
+
+### Comandos e resultados
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` | OK |
+| `npm run lint` | OK |
+| `npm run test` | OK - **91/91** testes (16 arquivos) |
+| `npm run build` | OK - `out/main` 62.45 kB |
+
 ## Proximo passo
 
-Fase 3 (`references/implementation-plan.md`): UX de importacao (drag/drop, seletor de arquivo, `Abrir pasta de entrada`), watchers das pastas Entrada, e tela de preview antes da geracao - e onde os parsers desta fase finalmente sao ligados a IPC/UI. Nao iniciar sem aprovacao explicita.
+Fase 5 (arquivamento/rotacao Gerados->Historico, tela de Historico, regenerar, excluir) ainda nao implementada. `batches` ja recebe um registro por geracao bem-sucedida (necessario para a deteccao de arquivo repetido desta fase), mas isso e so o minimo pedido - nenhuma rotacao de pastas, nenhuma UI de historico, nenhum regenerar/excluir foi feito. Nao iniciar sem aprovacao explicita.

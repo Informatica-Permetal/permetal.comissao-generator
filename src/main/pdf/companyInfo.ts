@@ -1,0 +1,12 @@
+import type { CompanyProfile } from '@shared/types/companyProfile';
+import type { PdfCompanyInfo } from './types';
+
+export function toPdfCompanyInfo(profile: CompanyProfile): PdfCompanyInfo {
+  return {
+    logoPath: profile.logoPath,
+    displayName: profile.displayName,
+    legalName: profile.legalName,
+    cnpj: profile.cnpj,
+    address: profile.address
+  };
+}

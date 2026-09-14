@@ -5,6 +5,11 @@ import { resolveAppDataPaths } from './app/paths';
 import { initLogger, log } from './app/logger';
 import { openDatabase } from './storage/database';
 import { registerSettingsHandlers } from './ipc/settingsHandlers';
+import { registerCompanyProfileHandlers } from './ipc/companyProfileHandlers';
+import { registerPdfHandlers } from './ipc/pdfHandlers';
+import { registerImportHandlers, startImportWatchers, stopImportWatchers } from './ipc/importHandlers';
+import { seedDefaultCompanyProfiles } from './companies/seedCompanyProfiles';
+import { getReportRoot } from './storage/settingsRepository';
 
 const paths = resolveAppDataPaths();
 app.setPath('userData', paths.userDataPath);
@@ -53,12 +58,32 @@ void app.whenReady().then(() => {
   log('info', 'app ready', { appDataPath: paths.userDataPath, databasePath: paths.databasePath });
 
   const db = openDatabase(paths.databasePath);
+  // __dirname is out/main here (see the preload path above) - NOT app.getAppPath(),
+  // which resolves to the entry script's own directory, not the project root.
+  const projectRootPath = join(__dirname, '..', '..');
+  seedDefaultCompanyProfiles(db, projectRootPath, join(paths.userDataPath, 'logos'));
 
   registerSettingsHandlers({
     db,
     paths,
+    getWindow: () => mainWindow,
+    onFirstRunCompleted: (reportRoot) => startImportWatchers(reportRoot, () => mainWindow)
+  });
+  registerCompanyProfileHandlers({
+    db,
+    paths,
     getWindow: () => mainWindow
   });
+  registerPdfHandlers({
+    db,
+    getWindow: () => mainWindow
+  });
+  registerImportHandlers({ db });
+
+  const existingReportRoot = getReportRoot(db);
+  if (existingReportRoot) {
+    startImportWatchers(existingReportRoot, () => mainWindow);
+  }
 
   createMainWindow();
 
@@ -73,4 +98,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit', () => {
+  void stopImportWatchers();
 });

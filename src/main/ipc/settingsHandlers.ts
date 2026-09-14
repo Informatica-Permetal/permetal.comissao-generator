@@ -11,10 +11,11 @@ interface SettingsHandlerDeps {
   db: DatabaseSync;
   paths: AppDataPaths;
   getWindow: () => BrowserWindow | null;
+  onFirstRunCompleted?: (reportRoot: string) => void;
 }
 
 export function registerSettingsHandlers(deps: SettingsHandlerDeps): void {
-  const { db, paths, getWindow } = deps;
+  const { db, paths, getWindow, onFirstRunCompleted } = deps;
 
   ipcMain.handle(IPC_CHANNELS.settingsGetState, (): AppState => ({
     isFirstRunComplete: isFirstRunComplete(db),
@@ -56,6 +57,7 @@ export function registerSettingsHandlers(deps: SettingsHandlerDeps): void {
         createFolderTree(reportRoot);
         persistFirstRunCompletion(db, reportRoot);
         log('info', 'first run completed', { reportRoot });
+        onFirstRunCompleted?.(reportRoot);
         return { ok: true, reportRoot };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Falha ao criar as pastas.';

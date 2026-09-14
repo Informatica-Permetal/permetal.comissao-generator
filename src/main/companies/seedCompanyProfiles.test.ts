@@ -7,7 +7,7 @@ import { openDatabase } from '../storage/database';
 import { getCompanyProfile, upsertCompanyProfile } from './companyProfileRepository';
 import { seedDefaultCompanyProfiles } from './seedCompanyProfiles';
 
-const REPO_ROOT = join(__dirname, '..', '..', '..');
+const BRAND_LOGOS_DIR = join(__dirname, '..', '..', '..', 'resources', 'brand-logos');
 
 let dir: string;
 let db: DatabaseSync;
@@ -26,7 +26,7 @@ afterEach(() => {
 
 describe('seedDefaultCompanyProfiles', () => {
   it('semeia as 4 filiais observadas com a marca/logo correta', () => {
-    seedDefaultCompanyProfiles(db, REPO_ROOT, logosDir);
+    seedDefaultCompanyProfiles(db, BRAND_LOGOS_DIR, logosDir);
 
     const permetalSp = getCompanyProfile(db, '0103');
     const permetalCravinhos = getCompanyProfile(db, '0104');
@@ -53,7 +53,7 @@ describe('seedDefaultCompanyProfiles', () => {
       cnpj: '11.111.111/0001-11'
     });
 
-    seedDefaultCompanyProfiles(db, REPO_ROOT, logosDir);
+    seedDefaultCompanyProfiles(db, BRAND_LOGOS_DIR, logosDir);
 
     const profile = getCompanyProfile(db, '0103');
     expect(profile?.displayName).toBe('Nome editado pelo usuario');
@@ -61,7 +61,7 @@ describe('seedDefaultCompanyProfiles', () => {
   });
 
   it('e idempotente - rodar duas vezes nao duplica nem falha', () => {
-    seedDefaultCompanyProfiles(db, REPO_ROOT, logosDir);
-    expect(() => seedDefaultCompanyProfiles(db, REPO_ROOT, logosDir)).not.toThrow();
+    seedDefaultCompanyProfiles(db, BRAND_LOGOS_DIR, logosDir);
+    expect(() => seedDefaultCompanyProfiles(db, BRAND_LOGOS_DIR, logosDir)).not.toThrow();
   });
 });

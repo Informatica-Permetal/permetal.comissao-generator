@@ -10,15 +10,11 @@ export const BRAND_LOGO_FILES = {
 export type BrandKey = keyof typeof BRAND_LOGO_FILES;
 
 /**
- * Path to the bundled, versioned brand logo shipped with the app under
- * `resources/brand-logos/`. `projectRootPath` must be the actual project
- * root, NOT `app.getAppPath()` (which resolves to the bundled entry
- * script's own directory - `out/main` here - not the project root; verified
- * empirically). Callers should derive it from `__dirname` the same way
- * `main/index.ts` already does for the preload path (`out/main/../..`),
- * kept as a parameter so this stays testable outside Electron. Revisit when
- * Phase 6 wires electron-builder `extraResources` for a packaged build.
+ * Path to the bundled, versioned brand logo shipped with the app.
+ * `brandLogosDir` must already be resolved for the current runtime (dev vs
+ * packaged/asar - see `main/app/assets.ts` `resolveBrandLogosDir`), kept as
+ * a parameter so this stays testable outside Electron.
  */
-export function resolveBundledBrandLogoPath(projectRootPath: string, brand: BrandKey): string {
-  return join(projectRootPath, 'resources', 'brand-logos', BRAND_LOGO_FILES[brand]);
+export function resolveBundledBrandLogoPath(brandLogosDir: string, brand: BrandKey): string {
+  return join(brandLogosDir, BRAND_LOGO_FILES[brand]);
 }

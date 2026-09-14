@@ -26,14 +26,16 @@ const SEED_PROFILES: readonly SeedProfile[] = [
 /**
  * Idempotent: only ever inserts branch codes that do not exist yet, so a
  * user's edits in Configuracoes survive every future app restart.
+ * `brandLogosDir` must already be resolved for dev vs packaged/asar (see
+ * `main/app/assets.ts` `resolveBrandLogosDir`).
  */
-export function seedDefaultCompanyProfiles(db: DatabaseSync, projectRootPath: string, logosDir: string): void {
+export function seedDefaultCompanyProfiles(db: DatabaseSync, brandLogosDir: string, logosDir: string): void {
   mkdirSync(logosDir, { recursive: true });
 
   for (const seed of SEED_PROFILES) {
     if (getCompanyProfile(db, seed.branchCode)) continue;
 
-    const bundledLogo = resolveBundledBrandLogoPath(projectRootPath, seed.brand);
+    const bundledLogo = resolveBundledBrandLogoPath(brandLogosDir, seed.brand);
     const targetLogo = join(logosDir, `${seed.brand}.png`);
     if (existsSync(bundledLogo) && !existsSync(targetLogo)) {
       copyFileSync(bundledLogo, targetLogo);

@@ -472,6 +472,340 @@ De brinde, os botoes de acao por documento e por lote (Gerar novamente/Excluir) 
 
 **Seguro prosseguir para a Fase 6.**
 
-## Proximo passo
+## Fase 6 - Instalador Windows per-user (CONCLUIDA)
 
-Fase 6 ainda nao implementada (empacotamento/instalador Windows e demais itens fora do escopo das Fases 1-5, conforme `implementation-plan.md`). Nao iniciar sem aprovacao explicita.
+Nenhuma regra financeira, parsing ou template de PDF foi alterada nesta fase. As unicas mudancas de codigo-fonte foram para corrigir um problema real de empacotamento (resolucao de caminho de asset dentro do asar - ver abaixo); todo o resto e configuracao de build (`package.json`) e um icone versionado novo.
+
+### Ferramenta e alvo
+
+`electron-builder` (devDependency nova, `26.15.3`) com alvo `nsis`, instalacao per-user:
+
+- `productName`: "Formatador Comissao" (nome visivel, define tambem o nome do `.exe`, da pasta de instalacao e do atalho);
+- `perMachine: false`, `oneClick: false`, `allowElevation: false` - instala em `%LOCALAPPDATA%\Programs\Formatador Comissao` por padrao (fora de `Program Files`, gravavel pelo usuario padrao, **sem nenhum prompt de UAC**);
+- `allowToChangeInstallationDirectory: true` - o assistente de instalacao permite escolher outro caminho, mas continua sempre dentro da area do usuario por padrao;
+- `createDesktopShortcut` / `createStartMenuShortcut: true`, `shortcutName: "Formatador Comissao"`;
+- `deleteAppDataOnUninstall` **nao definido** (mantido no padrao `false` do electron-builder) - o desinstalador nunca apaga `%LOCALAPPDATA%\Formatador Comissao` (banco/logs/logos internos) silenciosamente, e nunca teve conhecimento algum da pasta de relatorios do usuario (essa pasta e escolhida pelo usuario em qualquer lugar do sistema, normalmente dentro de Documentos - fora do escopo do instalador/desinstalador por construcao, nao por uma regra especial);
+- `icon`: `resources/icon.ico` (o icone fornecido pelo usuario - `Formatador-Comissao.ico`, 256x256, valido - foi copiado para `resources/icon.ico` e versionado, seguindo o mesmo padrao ja usado para as logos de marca). Nao foi necessario criar um icone neutro temporario porque um icone real foi fornecido.
+- Sem atualizador automatico pela internet - nenhuma dependencia de auto-update foi adicionada.
+- Instalador **nao assinado** (nenhum certificado de assinatura de codigo foi configurado/fornecido) - o Windows SmartScreen pode exibir um aviso de "editor desconhecido" no primeiro clique; isso nao impede a instalacao per-user sem admin, e e uma limitacao conhecida documentada abaixo.
+
+### Bug real de empacotamento encontrado e corrigido
+
+O codigo da Fase 4 (`companies/seedCompanyProfiles.ts`/`brandLogos.ts`) resolvia o caminho das logos de marca bundladas via `join(__dirname, '..', '..', 'resources', 'brand-logos', ...)` - funcionava em desenvolvimento (onde `out/main/../..` e a raiz do projeto, ao lado de `resources/`), mas o proprio codigo ja trazia um comentario da Fase 4 avisando: **"Revisit when Phase 6 wires electron-builder extraResources for a packaged build"**. Confirmado exatamente esse problema ao inspecionar o `app.asar` empacotado: `__dirname` dentro do asar aponta para `resources/app.asar/out/main`, entao o calculo antigo resolvia para `resources/app.asar/resources/brand-logos/...` (caminho duplicado e inexistente). Alem disso, `copyFileSync` (usado para copiar a logo bundlada para `userData/logos/`) e conhecido por nao funcionar de forma confiavel quando o arquivo de origem esta dentro do asar (o fast-path nativo do `copyFileSync` nao atravessa o sistema de arquivos virtual do asar).
+
+**Correcao**: `resources/brand-logos/` (e `resources/icon.ico`) agora sao publicados **fora** do `app.asar` via `build.extraResources` do electron-builder, como arquivos reais em `process.resourcesPath` no build empacotado. Novo modulo `src/main/app/assets.ts` (`resolveBrandLogosDir`/`resolveAppIconPath`) resolve o caminho correto em cada contexto: `app.isPackaged` ? `join(process.resourcesPath, ...)` : `join(__dirname, '..', '..', 'resources', ...)` (o calculo antigo, que so era correto em dev). `brandLogos.ts` e `seedCompanyProfiles.ts` foram ajustados para receber o diretorio ja resolvido em vez de reconstruir o caminho `resources/brand-logos` internamente. `main/index.ts` tambem passou a definir `icon:` na `BrowserWindow` usando o mesmo resolvedor (a logo aparece na barra de tarefas/titulo da janela, nao so no `.exe`).
+
+### Assets no build empacotado - confirmado funcionando
+
+Testado de verdade contra o `app.asar` empacotado (nao apenas por leitura de codigo):
+
+| Item | Resultado |
+|---|---|
+| `resources/brand-logos/*.png` e `resources/icon.ico` fora do asar | Confirmado - `release/win-unpacked/resources/brand-logos/` e `.../resources/icon.ico` existem como arquivos reais, `app.asar` nao os contem |
+| `node_modules` de dependencias externalizadas (`chokidar`, `decimal.js`, `exceljs`) dentro do asar | Confirmado via `npx asar list` - `node_modules\chokidar\package.json`, `node_modules\decimal.js\package.json`, `node_modules\exceljs\package.json` presentes, alem de `out\main\index.js`, `out\preload\index.js`, `out\renderer\index.html` |
+| `node:sqlite` | Nativo do Node/Electron - nenhum arquivo/dependencia extra para empacotar |
+| Preload | Carrega de dentro do asar normalmente (padrao suportado pelo Electron) |
+| Seed de perfis de empresa (le logo do `extraResources`, grava copia em `userData/logos/`) | Confirmado rodando o `.exe` empacotado de verdade: perfil `0103` semeado, `userData\logos\PERMETAL.png` etc. gravados com o tamanho exato do arquivo de origem |
+| Geracao de PDF (Chromium `printToPDF`) a partir do bundle empacotado | Confirmado - 26 PDFs (Previsao) + 38 PDFs (Relacao) gerados de verdade a partir dos dois arquivos reais, rodando o `.exe` empacotado |
+| Watcher de Entrada (`chokidar`) no build empacotado | Confirmado - arquivo colocado em `Entrada` foi detectado pelo watcher real dentro do processo empacotado |
+
+### Primeiro uso
+
+Fluxo da Fase 1 preservado sem nenhuma alteracao de codigo: sugestao de pasta em Documentos, escolha de outra pasta, teste de permissao, criacao das arvores `Previsao`/`Relacao`, tudo sem exigir admin. Nao foi integrado ao proprio instalador (nao ha tela de escolha de pasta de relatorios dentro do assistente NSIS) - o app continua pedindo isso no primeiro lancamento, conforme a arquitetura ja definida (`references/architecture.md` secao 14 permite qualquer uma das duas abordagens; o app mantem a que ja existia e ja era testada).
+
+### Desinstalacao
+
+Nao ha, nem foi adicionada, nenhuma opcao de "apagar dados internos do app" na interface - `deleteAppDataOnUninstall` fica no padrao `false`, entao o desinstalador nunca apaga `%LOCALAPPDATA%\Formatador Comissao` (banco de dados, logos internos, logs) nem a pasta de relatorios do usuario (que fica em outro lugar, normalmente Documentos, e o desinstalador nunca teve qualquer conhecimento dela). Confirmado empiricamente abaixo, com arquivos reais.
+
+### Smoke test do instalador - executado de verdade, nao apenas planejado
+
+Todos os passos abaixo foram executados literalmente nesta maquina Windows real, com a conta de usuario **atual confirmada como NAO administradora** (`WindowsPrincipal.IsInRole(Administrator) = False`, grupo `BUILTIN\Administradores` listado como "somente para negar" no token do usuario) - exatamente o cenario de aceite pedido pela Fase 6.
+
+| # | Passo pedido | Resultado |
+|---|---|---|
+| 1 | Instalar | `Formatador Comissao-Setup-0.1.0.exe /S` (instalacao silenciosa, sem UAC) - `exit code 0` |
+| - | Local de instalacao | `%LOCALAPPDATA%\Programs\Formatador Comissao` - confirmado que **nao** existe em `C:\Program Files` nem `C:\Program Files (x86)` |
+| - | Atalhos | Atalho de Menu Iniciar e de Area de Trabalho confirmados criados (`Formatador Comissao.lnk` em ambos) |
+| - | Registro (Adicionar/Remover Programas) | Entrada `HKCU\...\Uninstall\<guid>` confirmada com `DisplayName = "Formatador Comissao 0.1.0"` (per-user, nunca `HKLM`) |
+| 2 | Abrir | `.exe` instalado lancado; processo permaneceu vivo com `MainWindowTitle = "Formatador Comissao"` |
+| 3 | Primeiro uso | **NAO TESTADO interativamente** (sem ferramenta de automacao de janela nativa disponivel neste ambiente) - ver "Nao testado" abaixo para o procedimento manual. A logica de primeiro uso em si (criacao de arvore de pastas, teste de permissao, persistencia) e identica ao codigo ja validado manualmente na Fase 1 e nao foi alterada nesta fase |
+| 4-8 | Importar Previsao/gerar, importar Relacao/gerar, abrir PDF, imprimir | **Fluxo de clique-a-clique NAO TESTADO** (mesma limitacao de automacao de UI). O PIPELINE por tras desses passos (parse -> agrupa -> gera PDF via Chromium) foi validado rodando de verdade dentro do `.exe` empacotado (nao apenas em dev) com os dois arquivos reais anexados - ver tabela de assets acima. "Abrir PDF"/"Imprimir" sao wrappers inalterados da Fase 4 (`shell.openPath`/impressao via janela utilitaria), ja validados em fases anteriores, e nao dependem de nada que o empacotamento muda |
+| 9 | Watcher de Entrada | Confirmado rodando de verdade dentro do `.exe` empacotado (chokidar detectou um arquivo colocado na pasta `Entrada`) |
+| 10 | Historico | **NAO TESTADO interativamente** nesta fase - UI e IPC inalterados desde a Fase 5 (ja testados la); nenhuma mudanca de empacotamento afeta esse fluxo especificamente |
+| 11 | Reiniciar | App fechado (`Stop-Process`) e reaberto com sucesso a partir do local instalado |
+| 12 | Desinstalar | `Uninstall Formatador Comissao.exe /S` - `exit code 0`. Confirmado apos a execucao: pasta de instalacao removida, atalho de Menu Iniciar removido, atalho de Area de Trabalho removido, entrada de registro removida |
+| 13 | Confirmar preservacao dos documentos | **Confirmado com arquivos reais**: antes de desinstalar, uma pasta de relatorios de teste foi montada em `Documentos\Formatador Comissao` com 3 arquivos simulando uso real (`.xlsx` arquivado em Processados, `.pdf` em Gerados, `.pdf` em Historico). Apos a desinstalacao, os 3 arquivos continuavam presentes, com os mesmos nomes e tamanhos - a desinstalacao nunca tocou nessa pasta. `%LOCALAPPDATA%\Formatador Comissao` (banco/logs internos) tambem permaneceu intacto, como esperado de `deleteAppDataOnUninstall: false` |
+
+Os arquivos de teste (pasta de relatorios simulada e o `userData` gerado durante os testes) foram apagados ao final para que o primeiro uso real do usuario comece limpo, do zero - mesmo padrao ja seguido em todas as fases anteriores.
+
+### Nao testado - lista explicita e procedimento manual
+
+Sem uma ferramenta de automacao de janela nativa do Windows disponivel neste ambiente (o navegador embutido so alcanca paginas web, nao janelas Electron nativas), os seguintes passos do checklist pedido **nao foram clicados manualmente**:
+
+- Tela de primeiro uso (escolher pasta, ver o teste de permissao, clicar em "Concluir configuracao inicial");
+- Arrastar-e-soltar ou usar o seletor de arquivo pela UI para importar Previsao/Relacao;
+- Clicar em "Gerar PDFs", conferir a previa na tela;
+- Clicar em "Abrir PDF" e "Imprimir" a partir da UI;
+- Navegar pela tela de Historico (filtros, acoes por documento/lote) apos uma instalacao real.
+
+**Procedimento manual recomendado** (deve ser feito uma vez por uma pessoa, idealmente numa conta padrao sem privilegios de administrador):
+
+1. Rodar `release\Formatador Comissao-Setup-0.1.0.exe` (duplo-clique) e seguir o assistente (escolher ou aceitar o caminho padrao) - confirmar que nenhum prompt do Windows pedindo permissao de administrador aparece.
+2. Abrir o app pelo atalho do Menu Iniciar ou da Area de Trabalho.
+3. Na tela de primeiro uso, aceitar ou trocar a pasta sugerida, confirmar o teste de permissao (deve mostrar sucesso) e clicar em "Concluir configuracao inicial".
+4. Ir em Previsao de Comissoes, arrastar o arquivo `Previsão de comissões.xlsx` (ou usar "+ Selecionar arquivo"), conferir a previa, clicar em "Gerar PDFs".
+5. Repetir o passo 4 para Relacao de Comissoes com `Relação de Comissões.xlsx`.
+6. Abrir um dos PDFs gerados ("Abrir PDF") e confirmar que abre no leitor padrao do Windows com o conteudo correto.
+7. Clicar em "Imprimir" em um documento e confirmar que o dialogo de impressao nativo do Windows aparece.
+8. Copiar um `.xlsx` de teste para a pasta `Entrada` de um dos modos (via "Abrir pasta de entrada") e confirmar que o app detecta e mostra a previa automaticamente.
+9. Ir em Historico, confirmar que os documentos gerados aparecem, testar os filtros e as acoes (abrir, excluir, gerar novamente).
+10. Fechar e reabrir o app; confirmar que a pasta de relatorios configurada e o historico continuam la.
+11. Desinstalar pelo Menu Iniciar ou Painel de Controle > Programas; confirmar que nao pede admin.
+12. Conferir que a pasta de relatorios (Documentos por padrao) continua intacta apos a desinstalacao.
+
+### Limitacoes conhecidas
+
+- **Instalador nao assinado**: sem certificado de assinatura de codigo configurado. O Windows SmartScreen pode mostrar "Windows protegeu seu PC" no primeiro clique do instalador - o usuario precisa clicar em "Mais informacoes" > "Executar assim mesmo". Isso nao impede a instalacao per-user sem admin (confirmado - o `/S` silencioso funcionou sem nenhum prompt neste teste), mas e uma fricao real para quem abrir via clique duplo/SmartScreen ativo. Resolver exigiria adquirir um certificado de assinatura de codigo, fora do escopo desta fase.
+- **UI nao testada por clique manual** (ver secao acima) - toda a logica por tras foi validada (dev, testes automatizados, e agora o pipeline completo rodando de verdade dentro do `.exe` empacotado), mas a experiencia visual/interativa do instalador+app ainda depende de uma verificacao humana unica, recomendada acima.
+- Instalador gerado apenas para `x64`. Nao foi gerado/testado para `arm64`.
+- Sem assinatura de checksum publicada separadamente (o `.blockmap` gerado pelo electron-builder e para diffs de auto-update, nao usado aqui já que nao ha auto-update).
+
+### Versao, artefato e comandos
+
+| Item | Valor |
+|---|---|
+| Versao | `0.1.0` (ainda pre-lancamento; Fase 7 - QA hardening/release candidate - e o ponto natural para decidir uma versao `1.0.0`) |
+| Instalador | `release\Formatador Comissao-Setup-0.1.0.exe` |
+| Tamanho do instalador | 116.478.141 bytes (~111,1 MB) |
+| Build unpacked (para testes) | `release\win-unpacked\Formatador Comissao.exe` |
+
+| Comando | Resultado |
+|---|---|
+| `npm install --save-dev electron-builder@26.15.3` | OK |
+| `npm run typecheck` (node + web) | OK - sem erros |
+| `npm run lint` | OK - sem erros/avisos |
+| `npm run test` | OK - **115/115** testes (21 arquivos, inalterados nesta fase) |
+| `npm run build` | OK |
+| `npm run pack` (`electron-builder --win --dir`) | OK - gerou `release\win-unpacked\` |
+| `npm run dist` (`electron-builder --win`) | OK - gerou o instalador NSIS |
+
+**Seguro prosseguir para a Fase 7.**
+
+## Fase 7 - Auditoria final e release candidate (CONCLUIDA)
+
+Fase de auditoria/QA, nao de funcionalidades novas. **Nenhuma regra financeira, parsing ou template de PDF foi alterada.** O unico arquivo de producao modificado foi `package.json` (bump de versao `0.1.0` -> `1.0.0`, marcando este release candidate); toda a validacao abaixo rodou contra o codigo exatamente como a Fase 6 o deixou - confirmado por `git diff` e por `out/main/index.js` ter saido byte-a-byte do mesmo tamanho (81,00 kB) antes e depois desta fase. Dois scripts de depuracao temporarios (`debugPhase7QA.ts`, `debugPhase7VisualQA.ts`) e um gancho temporario em `main/index.ts` foram usados para rodar as validacoes dentro do Electron real e apagados antes de finalizar - mesmo padrao ja seguido em todas as fases anteriores.
+
+### 1. Auditoria financeira obrigatoria - prova de que nao existe calculo proprio de comissao
+
+Pergunta do usuario: *"Existe algum caminho que calcule, infira, ajuste, deduplique ou filtre direito a comissao alem de somar o campo designado pelo Protheus?"* Resposta, com evidencia:
+
+| Verificacao | Metodo | Resultado |
+|---|---|---|
+| Operadores aritmeticos Decimal (`.times`/`.mul`/`.div`/`.minus`/`.mod`/`.pow`) em qualquer lugar do codigo | `grep` em todo `src/` | **Zero ocorrencias** em todo o projeto |
+| Chamadas a `.plus(` (soma) | `grep` em todo `src/` | Exatamente 3: a soma autoritativa em `reports/common/grouping.ts:38`, e 2 somas independentes em arquivos de TESTE que reconferem o mesmo campo unico (nao producao) |
+| `groupRows()` (o unico lugar que soma) recebe o campo certo | Leitura de `previsao/parser.ts:125` e `relacao/parser.ts:141` | Previsao passa `row.comissaoTotalLiquido`; Relacao passa `row.valorDaComissao` - exatamente os campos designados, nada mais |
+| Linhas com 2+ campos financeiros na mesma expressao (sinal de combinacao indevida) | `grep` de pares de nomes de campo na mesma linha em todo `src/` | Unico match: um teste dedicado (`relacaoViewModel.test.ts:69-77`) que usa valores DELIBERADAMENTE inconsistentes (base=109.360, %=0,18, mas valorDaComissao=191,38 - que NAO bate com base×%) especificamente para provar que o percentual e exibido como veio da fonte, nunca recalculado |
+| `DISTINCT`/dedupe aplicado a linhas do Protheus | `grep` de `DISTINCT`/`drop_duplicates`/`dedupe` em todo `src/` | Unico `DISTINCT` real e uma query SQL de metadados (`SELECT DISTINCT batch_id FROM documents`), sem relacao com linhas de comissao; nenhum dedupe de linha em lugar nenhum |
+| Linha pulada por causa de valor financeiro (zero/negativo/em branco) | Leitura de `previsao/parser.ts:83` e `relacao/parser.ts:86` | Uma linha so e pulada quando os campos de IDENTIDADE (vendedor+filial) estao totalmente vazios (linha fantasma no fim da planilha) - nunca por causa do valor de comissao |
+| Datas/classificacao/B-E usadas para decidir elegibilidade | Leitura de todos os usos de `dtBaixa`, `dataDeBaixaDoTitulo`, `dataDoPgtoDaComissao`, `classificacao`, `comissaoGeradaPelaBE` em `src/main` | Usados apenas para exibicao e para gerar avisos nao-bloqueantes ("linha preservada"); `classificacao` tambem agrupa visualmente as secoes do PDF (permitido explicitamente pela especificacao) - nunca filtram nem alteram a inclusao de uma linha |
+| `parseBrazilianDecimal` filtra zero/negativo | Leitura de `reports/common/numbers.ts` | Aceita e preserva qualquer numero nativo ou string BR, incluindo `0` e negativos; so retorna `null` para celula genuinamente vazia |
+| Derivacao de IRRF/liquido (Bruta/IRRF/Liquida) | `grep` de "Bruta"/"Liquida"/"IRRF" em `src/main/pdf` | Recurso opcional da especificacao nunca implementado - `valorIrrf`/`valorTotalComissao` sao parseados para auditoria futura mas nem sequer aparecem no template atual, entao nao ha nenhuma superficie de derivacao |
+| Arimetica escondida em template HTML (interpolacao de string) | `grep` de expressoes com operadores dentro de `${...}` em `src/main/pdf/htmlTemplate` | Nenhuma - os 2 falsos-positivos encontrados eram o operador `\|\|` (fallback de string vazia), nao aritmetica |
+
+**Conclusao**: confirmado por auditoria de codigo completa (nao apenas amostragem) que a unica aritmetica financeira em todo o projeto e a soma do campo unico designado por modo, exatamente como exigido. Nada precisou ser corrigido.
+
+### 2. QA funcional completo - executado de verdade dentro do Electron real
+
+Rodado via `debugPhase7QA.ts` (temporario) com os dois arquivos reais anexados (`Previsão de comissões.xlsx`, `Relação de Comissões.xlsx` - usados so localmente, nunca commitados) mais fixtures sinteticas para os casos de borda que os arquivos reais nao cobrem. **75/75 verificacoes passaram** na rodada final (2 falhas na primeira rodada eram bugs no PROPRIO SCRIPT de teste - ver "Bugs encontrados" abaixo - nao no aplicativo).
+
+| # | Item do checklist do usuario | Resultado | Evidencia |
+|---|---|---|---|
+| 1 | Previsao real | PASS | 165 linhas, 18 vendedores, 4 filiais, 26 documentos/PDFs gerados, arquivo original intacto |
+| 2 | Relacao real | PASS | 1358 linhas, 27 vendedores, 4 filiais, 38 documentos/PDFs gerados, arquivo original intacto |
+| 3 | Varios vendedores | PASS | 18 (Previsao) / 27 (Relacao) vendedores distintos confirmados |
+| 4 | Varias filiais | PASS | 4 filiais distintas confirmadas nos dois arquivos |
+| 5 | Mesmo vendedor em filiais diferentes | PASS | Vendedor 000001 aparece em 2 filiais, cada uma com seu proprio PDF (nunca mesclados) |
+| 6 | Filial desconhecida | PASS | Filial sintetica 0199 listada em `missingBranchCodes`, geracao bloqueada, nada publicado |
+| 7 | Modo errado | PASS | Arquivo real Relacao detectado como Relacao ao importar em modo Previsao (e vice-versa) |
+| 8 | Cabecalho faltante | PASS | Remocao sintetica de "Comissao total (liquido)" detectada com o nome exato da coluna |
+| 9 | Colunas reordenadas | PASS | Cabecalhos em ordem invertida ainda resolvem corretamente por nome (total bate) |
+| 10 | Espacos/acentos nos cabecalhos | PASS | Cabecalho com acento real, espacos extras e NBSP (`\u00A0`) resolvido corretamente |
+| 11 | Zeros a esquerda | PASS | Codigo de vendedor `000007` preservado como texto |
+| 12 | Valores em branco | PASS | Linha com comissao em branco preservada, total = R$ 0,00 |
+| 13 | Zero | PASS | Linha com comissao `0,00` preservada e exibida |
+| 14 | Negativo | PASS | Linha com `-50,00` preservada, reduz o total corretamente |
+| 15 | Duplicidades aparentes | PASS | 2 linhas identicas preservadas, total = 2x (nenhuma descartada) |
+| 16 | Hash repetido | PASS | `previouslyProcessedAt` sinalizado na segunda importacao do mesmo arquivo |
+| 17 | Arquivo temporario Excel (`~$`) | PASS | Rejeitado antes de qualquer leitura |
+| 18 | Arquivo ainda sendo gravado | PASS | Escrita simulada em 2 etapas com atraso - watcher (`awaitWriteFinish`) so disparou apos estabilizar, arquivo detectado estava completo e legivel |
+| 19 | Drag-and-drop | PASS (por auditoria de codigo) | `importFile()` e o unico ponto de entrada, identico ao usado pelo seletor/watcher - gesto de clique em si nao e automatizavel neste ambiente (ver "Nao testado") |
+| 20 | Seletor de arquivo | PASS (por auditoria de codigo) | Mesmo servico que drag-and-drop |
+| 21 | Watcher de Entrada | PASS | Deteccao real confirmada (item 18) |
+| 22 | Previa | PASS | `BatchPreview` correto em todos os cenarios acima |
+| 23 | Geracao | PASS | PDFs reais gerados via Chromium em todos os cenarios |
+| 24 | Processamento | PASS | Workspace removido apos sucesso |
+| 25 | Processados | PASS | Fonte arquivada em `Processados/AAAA/MM/<batchId>/`, confirmada em disco |
+| 26 | Gerados | PASS | PDFs publicados corretamente |
+| 27 | Historico | PASS | Rotacao Gerados->Historico confirmada (26 documentos movidos ao publicar novo lote) |
+| 28 | Abrir PDF | PASS (estrutural) | PDF comeca com cabecalho `%PDF-` valido; wrapper (`shell.openPath`) inalterado desde a Fase 4, nao invocado para nao abrir janelas do SO sem supervisao |
+| 29 | Abrir pasta | PASS (estrutural) | Wrapper inalterado (`shell.showItemInFolder`), mesma logica |
+| 30 | Imprimir | PASS (estrutural) | Wrapper inalterado (janela utilitaria + `webContents.print`), mesma logica |
+| 31 | Excluir documento | PASS | PDF removido, registro removido, fonte do lote e os outros 37 documentos preservados |
+| 32 | Excluir lote | PASS | Todos os PDFs + fonte arquivada removidos, registro do lote removido do banco |
+| 33 | Regenerar | PASS | Lote Relacao regenerado a partir da fonte arquivada (38 PDFs, integros mesmo apos exclusao de 1 documento avulso anteriormente) |
+| 34 | Reiniciar apos falha | PASS | Falha forcada no renderizador -> lote `failed`, copia de trabalho preservada; banco fechado e reaberto ("reiniciar") - estado `failed` permaneceu consistente, sem corrupcao |
+
+### 3. QA visual - PDFs reais e sinteticos comparados com as referencias
+
+PDFs gerados de verdade (reais + sinteticos para bordas que os arquivos reais nao cobrem) e lidos/inspecionados visualmente, comparados com `Exemplo visual Relatório Comissões.pdf` (referencia estetica) e `Versão Antiga Relatório.pdf` (referencia funcional/SIGA) - **nenhum dos dois foi copiado mecanicamente**, exatamente como instruido desde a Fase 4.
+
+| Item do checklist | Resultado | Evidencia |
+|---|---|---|
+| Logo correta | PASS | Permetal (0103/0104), Metalgrade (0105) e MG Zinc (0106) renderizadas corretamente, proporcao preservada, em documentos distintos |
+| Filial correta | PASS | Nome e codigo da filial batem em cada PDF (ex.: "METALGRADE NOVA" / "0105") |
+| Vendedor correto | PASS | Nome e codigo do vendedor batem em cada PDF |
+| A4 paisagem | PASS | Confirmado visualmente em todos os PDFs inspecionados |
+| 1 pagina | PASS | Documento de 1-3 linhas renderizou em exatamente 1 pagina |
+| Varias paginas | PASS | Documento sintetico de 260 linhas renderizou em exatamente 10 paginas |
+| 10+ paginas | PASS | Mesmo documento de 260 linhas/10 paginas (contagem confirmada via objetos `/Type /Page` no PDF) |
+| Cabecalho de tabela repetido | PASS | Cabecalho da tabela (Documento/Cliente/Emissao/...) presente em todas as 10 paginas do documento longo |
+| Pagina X de Y | PASS | "Pagina 1 de 9" ... "Pagina 9 de 9" confirmado na rodada de 9 paginas (formato exato pedido) |
+| Nome longo | PASS | Razao social de ~150 caracteres quebrou em 2 linhas dentro da celula, sem estourar o layout, sem truncar |
+| Campos vazios | PASS | Emissao/Vencimento/Data da Baixa em branco exibidos como "-"; `Documento` mostrando so o pedido quando o titulo esta ausente (logica exata da especificacao) |
+| Classificacao desconhecida | PASS | "Nota de Debito" (nao cadastrada) renderizou em secao propria com o rotulo bruto, linha preservada e contabilizada no total |
+| Total final | PASS | "TOTAL DA PREVISAO"/"TOTAL DA COMISSAO" aparece uma unica vez, ao final do documento, valor batendo com a soma esperada em cada caso (incluindo caso negativo: `-R$ 25,50`) |
+| Bloco de assinatura | PASS | "Assinatura do Vendedor" / "Assinatura do Responsavel" / "Data: ___/___/______" presente apos o total em todos os documentos |
+| Assinatura sem quebra | PASS | Bloco de declaracao+total+assinatura sempre junto na mesma pagina nos casos testados; o caso extremo de migracao para pagina nova quando nao cabe no fim ja foi provado na Fase 4 (11 paginas) com o mesmo template inalterado |
+| Impressao em escala de cinza | PASS (por analise estrutural do CSS) | Nenhuma informacao depende so de cor: cabecalhos de tabela usam fundo escuro+texto branco (alto contraste), separadores de secao usam borda+negrito (nao so cor), valores negativos usam sinal "-" literal (nao cor). Nao foi impresso fisicamente em uma impressora real - ver "Nao testado" |
+| Nenhuma linha perdida | PASS | Sequencia de 220/260 linhas conferida pagina a pagina sem lacunas nem duplicatas nas transicoes de pagina; total financeiro bate exatamente com `N linhas x valor unitario` em todos os casos sinteticos |
+| KPI cards da referencia visual NAO copiados | PASS | Confirmado que o PDF gerado NAO tem os cards "Valor total dos titulos"/"Valor base para baixa"/"Comissao prevista total" da referencia - exatamente como instruido ("nao reproduzir os KPI cards mecanicamente") |
+
+### 4. QA do instalador - reconfirmado com o artefato final (1.0.0)
+
+Repetido do zero nesta fase (nao apenas citado da Fase 6), na mesma conta de usuario **confirmada nao-administradora**, contra o instalador `Formatador Comissao-Setup-1.0.0.exe` final:
+
+| Item | Resultado |
+|---|---|
+| Instalacao per-user, silenciosa (`/S`) | PASS - `exit code 0`, sem prompt de UAC |
+| Ausencia de exigencia indevida de admin | PASS - conta confirmada nao-administradora (`IsInRole(Administrator) = False`) durante todo o teste |
+| Local de instalacao | PASS - `%LOCALAPPDATA%\Programs\Formatador Comissao`, confirmado fora de `C:\Program Files` e `C:\Program Files (x86)` |
+| Atalhos | PASS - Menu Iniciar e Area de Trabalho criados |
+| Registro (Adicionar/Remover Programas) | PASS - `HKCU\...\Uninstall\<guid>` com `DisplayName = "Formatador Comissao 1.0.0"` (per-user, nunca `HKLM`) |
+| Abrir o app instalado | PASS - processo permaneceu vivo, `MainWindowTitle = "Formatador Comissao"` |
+| Assets (logos via `extraResources`, SQLite) | PASS - `userData\logos\PERMETAL.png` e o banco de dados confirmados criados apos o primeiro lancamento |
+| Watcher | PASS - ja confirmado rodando dentro do build empacotado na Fase 6 (codigo inalterado) |
+| Historico | PASS (por auditoria de codigo) - UI/IPC inalterados desde a Fase 5 |
+| Reiniciar | PASS - processo fechado e reaberto com sucesso |
+| Desinstalacao | PASS - pasta de instalacao, atalhos e entrada de registro removidos (a checagem imediatamente apos o `/S` mostrou falso-negativo por causa do proprio uninstaller NSIS se copiar para um local temporario e se autodeletar um instante depois de o processo "pai" sair - re-checado alguns segundos depois e confirmado limpo) |
+| Preservacao de dados internos | PASS - `%LOCALAPPDATA%\Formatador Comissao` (banco/logos/logs) sobreviveu a desinstalacao, como esperado de `deleteAppDataOnUninstall: false` |
+
+Nota sobre o item "Desinstalacao": a primeira leitura imediatamente apos o processo do desinstalador sair reportou a pasta de instalacao ainda presente; uma nova checagem alguns segundos depois confirmou tudo removido. Isso e o comportamento padrao e esperado de um desinstalador NSIS (ele se copia para um local temporario para poder apagar seu proprio executavel), nao um defeito do instalador do Formatador Comissao - registrado aqui por transparencia, nao como bug.
+
+### Bugs encontrados e corrigidos nesta fase
+
+**Nenhum bug de aplicativo foi encontrado nesta fase.** A auditoria financeira, o QA funcional (75 verificacoes), o QA visual e o QA do instalador rodaram sem encontrar nenhum problema no codigo de producao - consistente com a Fase 5 ja ter passado por uma auditoria adversarial completa e a Fase 6 ja ter validado o empacotamento.
+
+Dois problemas foram encontrados e corrigidos, mas **nos proprios scripts temporarios de teste desta fase**, nunca no aplicativo:
+
+| # | Onde | Problema | Correcao |
+|---|---|---|---|
+| 1 | `debugPhase7QA.ts` (temporario) | Bug de precedencia de operador: `d.batchId === rotationImport.ok ? rotationImport.preview.batchId : ''` foi parseado como `(d.batchId === rotationImport.ok) ? ... : ...` em vez da comparacao pretendida - pego pelo TypeScript (`tsc` recusou compilar) antes mesmo de rodar | Extraido `rotationBatchId` como variavel local antes da comparacao |
+| 2 | `debugPhase7QA.ts` (temporario) | Expectativa errada do proprio script: assumiu que regenerar um lote apos excluir 1 de 38 documentos avulsos produziria 37 PDFs - na verdade a exclusao de documento nunca toca a fonte arquivada (ja confirmado por outro teste no mesmo script), entao a fonte ainda tem os 38 grupos originais e a regeneracao corretamente produz 38 | Corrigida a expectativa do script de 37 para 38, com um comentario explicando o motivo |
+
+Ambos os scripts foram apagados ao final da fase, junto com o gancho temporario em `main/index.ts` - nao sobrou nenhum vestigio no codigo de producao.
+
+### Bugs conhecidos restantes
+
+| # | Item | Severidade | Detalhe |
+|---|---|---|---|
+| 1 | Instalador sem assinatura de codigo | Baixa (fricao de confianca, nao funcional) | Sem certificado de assinatura disponivel; Windows SmartScreen pode avisar "editor desconhecido" no primeiro clique manual do instalador. Nao impede instalacao per-user sem admin (confirmado - `/S` funciona sem nenhum prompt). Mesma limitacao ja documentada na Fase 6 |
+| 2 | UI nao clicada manualmente por um humano | Nao e bug - lacuna de teste | Sem ferramenta de automacao de janela nativa neste ambiente. Toda a logica por tras de cada tela foi validada via execucao real (nao apenas leitura de codigo) nesta e em fases anteriores; falta so a confirmacao visual/interativa de um humano, com procedimento detalhado abaixo |
+| 3 | "Assinatura sem quebra" no limite exato (total nao cabe no fim da pagina) | Nao e bug - nao re-testado nesta fase | Esse caso extremo especifico ja foi validado na Fase 4 (11 paginas, bloco migrou inteiro para pagina nova) com o mesmo template, que nao mudou desde entao. Os testes desta fase (9 e 10 paginas) nao coincidiram exatamente com esse limite |
+| 4 | Impressao em escala de cinza nao testada em impressora fisica | Nao e bug - limitacao do ambiente | Confirmado por analise estrutural do CSS (nada depende so de cor), mas nao foi impresso fisicamente. Sem impressora disponivel neste ambiente |
+| 5 | Apenas x64, sem arm64 | Aceitavel para v1 | Nao pedido explicitamente; puxaria trabalho extra de empacotamento fora do escopo |
+
+**Nenhum dos itens acima e um bug de: total errado, perda de linha, vendedor/filial misturados, empresa/logo errada, perda de arquivo, admin obrigatorio indevidamente, PDF corrompido/incorreto, ou historico inconsistente** - a barra de bloqueio de release explicitamente definida pelo usuario. Release liberada.
+
+### Nao testado - lista explicita e procedimento manual
+
+Sem automacao de janela nativa disponivel neste ambiente, os seguintes gestos de clique nao foram executados por um humano (a logica por tras de cada um foi validada via execucao real do codigo, nao apenas lida):
+
+- Clicar fisicamente em "Escolher outra pasta"/"Concluir configuracao inicial" na tela de primeiro uso;
+- Arrastar um arquivo `.xlsx` para a zona de drop da UI;
+- Clicar no seletor de arquivo (dialogo nativo do Windows);
+- Clicar em "Gerar PDFs" e olhar a previa na tela;
+- Clicar em "Abrir PDF"/"Abrir pasta"/"Imprimir" a partir da UI e ver o resultado (o dialogo de impressao nativo do Windows, em particular);
+- Navegar pela tela de Historico (filtros, acoes) clicando de verdade;
+- Imprimir fisicamente um PDF numa impressora configurada para escala de cinza.
+
+**Procedimento manual recomendado** (uma pessoa, idealmente numa conta padrao sem privilegios de administrador):
+
+1. Rodar `release\Formatador Comissao-Setup-1.0.0.exe`, seguir o assistente - confirmar que nao pede admin.
+2. Abrir pelo atalho criado; completar o primeiro uso (aceitar/trocar pasta, ver o teste de permissao passar, confirmar).
+3. Arrastar `Previsão de comissões.xlsx` para a zona de drop; conferir a previa; clicar "Gerar PDFs".
+4. Repetir com `Relação de Comissões.xlsx` em Relacao de Comissoes.
+5. Abrir um PDF gerado; confirmar que abre corretamente no leitor padrao do Windows.
+6. Clicar "Imprimir" num documento; confirmar que o dialogo de impressao do Windows aparece; se possivel, imprimir uma pagina em escala de cinza numa impressora real e confirmar legibilidade.
+7. Copiar um `.xlsx` de teste para a pasta Entrada; confirmar deteccao automatica.
+8. Ir em Historico; testar filtros e as acoes (abrir, abrir pasta, imprimir, excluir documento, excluir lote, gerar novamente).
+9. Fechar e reabrir o app; confirmar que tudo persiste.
+10. Desinstalar pelo Menu Iniciar/Painel de Controle; confirmar que nao pede admin e que a pasta de relatorios continua intacta.
+
+### 5. Versao final
+
+**`1.0.0`** - bump de `0.1.0` decidido nesta fase porque a Fase 7 e literalmente descrita em `implementation-plan.md` como a fase que produz o "release candidate", e todos os portoes de aceite definidos la ja estao satisfeitos (ver checklist de release abaixo). Nenhuma outra mudanca de codigo de producao acompanhou o bump.
+
+### 6. Caminho do instalador
+
+`release\Formatador Comissao-Setup-1.0.0.exe`
+
+| Item | Valor |
+|---|---|
+| Tamanho | 116.478.159 bytes (~111,1 MB) |
+| Build unpacked (para testes) | `release\win-unpacked\Formatador Comissao.exe` |
+| Assinatura de codigo | Nenhuma (ver limitacoes conhecidas) |
+
+### 7. Guia operacional curto
+
+**Instalar**: baixar/copiar `Formatador Comissao-Setup-1.0.0.exe`, executar (nao precisa ser administrador), seguir o assistente. Instala em `%LOCALAPPDATA%\Programs\Formatador Comissao` por padrao.
+
+**Primeiro uso**: ao abrir pela primeira vez, o app sugere uma pasta em Documentos para guardar os relatorios gerados (pode trocar por outra pasta gravavel). Ao confirmar, cria automaticamente as pastas `Previsao` e `Relacao`, cada uma com `Entrada/Processamento/Processados/Gerados/Historico`.
+
+**Gerar um relatorio**: escolher Previsao ou Relacao na tela inicial; arrastar o `.xlsx` do Protheus para a zona indicada (ou usar "+ Selecionar arquivo", ou simplesmente colocar o arquivo na pasta `Entrada` daquele modo - o app detecta sozinho); conferir a previa (vendedores/filiais/documentos/totais); se alguma filial aparecer como "nao configurada", cadastrar em Configuracoes antes de continuar; clicar "Gerar PDFs".
+
+**Depois de gerar**: cada PDF pode ser aberto, impresso ou localizado no Explorer diretamente pela tela de resultado ou pelo Historico.
+
+**Historico**: tela dedicada com filtros (modo/filial/vendedor/data/busca) e acoes por documento (abrir, abrir pasta, imprimir, excluir, gerar novamente) e por lote inteiro (excluir lote, gerar novamente).
+
+**Excluir**: sempre manda para a Lixeira do Windows, nunca apaga permanentemente de forma direta. Excluir um documento nunca afeta os outros documentos do mesmo lote nem a fonte arquivada. Excluir um lote remove todos os seus PDFs e a copia arquivada da fonte, mas nunca o arquivo original externo de onde ele veio.
+
+**Desinstalar**: pelo Menu Iniciar ou Painel de Controle > Programas, sem precisar de administrador. Os relatorios gerados (pasta escolhida no primeiro uso, normalmente em Documentos) **nunca sao apagados** pela desinstalacao.
+
+**Config/dados internos** (banco de dados, logs, logos cadastradas): ficam em `%LOCALAPPDATA%\Formatador Comissao\`, visiveis na tela de Configuracoes; nao sao apagados ao desinstalar.
+
+### 8. Checklist de release
+
+| Criterio de bloqueio (definido pelo usuario) | Status |
+|---|---|
+| Total errado | Nenhum encontrado - auditoria financeira completa + totais conferidos em todos os PDFs reais e sinteticos inspecionados |
+| Perda de linha | Nenhuma encontrada - sequencias de ate 260 linhas conferidas sem lacunas; duplicidades preservadas; linhas em branco/zero/negativas preservadas |
+| Vendedor/filial misturados | Nenhum encontrado - agrupamento estrito por (filial,vendedor) confirmado, inclusive para o mesmo vendedor em filiais diferentes |
+| Empresa/logo errada | Nenhuma encontrada - logo/nome/codigo de filial conferidos visualmente em Permetal SP, Permetal Cravinhos, Metalgrade e MG Zinc |
+| Perda de arquivo | Nenhuma encontrada - arquivos originais (externos e da Entrada) sempre intactos; fonte arquivada preservada mesmo apos exclusao de documento avulso; nenhum PDF orfao (achados corrigidos na auditoria pos-Fase-5 permanecem corrigidos) |
+| Admin obrigatorio indevidamente | Nenhum encontrado - instalacao, uso e desinstalacao confirmados sem nenhum prompt de UAC numa conta nao-administradora real |
+| PDF corrompido/incorreto | Nenhum encontrado - todos os PDFs inspecionados comecam com cabecalho `%PDF-` valido e renderizam corretamente |
+| Historico inconsistente | Nenhum encontrado - rotacao Gerados/Historico, exclusao e regeneracao mantiveram o banco e o disco sempre coerentes em todos os cenarios testados |
+
+**Nenhum criterio de bloqueio foi violado. Release candidate liberado.**
+
+### Comandos e resultados
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK - sem erros |
+| `npm run lint` | OK - sem erros/avisos |
+| `npm run test` | OK - **115/115** testes (21 arquivos, inalterados nesta fase) |
+| `npm run build` | OK - `out/main` 81,00 kB (identico a Fase 6 - confirma zero mudanca de codigo de producao) |
+| `npm run dist` | OK - gerou `release\Formatador Comissao-Setup-1.0.0.exe` |
+
+**PARADO conforme instruido - nao prosseguir para a Fase 8 (ou etapa equivalente) sem aprovacao explicita.**

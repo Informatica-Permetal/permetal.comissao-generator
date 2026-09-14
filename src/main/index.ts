@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from 'electron';
 import { join } from 'node:path';
 import { APP_NAME } from '@shared/constants/app';
 import { resolveAppDataPaths } from './app/paths';
+import { resolveAppIconPath, resolveBrandLogosDir } from './app/assets';
 import { initLogger, log } from './app/logger';
 import { openDatabase } from './storage/database';
 import { registerSettingsHandlers } from './ipc/settingsHandlers';
@@ -26,6 +27,7 @@ function createMainWindow(): void {
     show: false,
     title: APP_NAME,
     autoHideMenuBar: true,
+    icon: resolveAppIconPath(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -59,10 +61,7 @@ void app.whenReady().then(() => {
   log('info', 'app ready', { appDataPath: paths.userDataPath, databasePath: paths.databasePath });
 
   const db = openDatabase(paths.databasePath);
-  // __dirname is out/main here (see the preload path above) - NOT app.getAppPath(),
-  // which resolves to the entry script's own directory, not the project root.
-  const projectRootPath = join(__dirname, '..', '..');
-  seedDefaultCompanyProfiles(db, projectRootPath, join(paths.userDataPath, 'logos'));
+  seedDefaultCompanyProfiles(db, resolveBrandLogosDir(), join(paths.userDataPath, 'logos'));
 
   registerSettingsHandlers({
     db,

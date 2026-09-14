@@ -294,6 +294,61 @@ Vendedores em mais de uma filial (cenario 12) fica provado pelos proprios numero
 | `npm run test` | OK - **91/91** testes (16 arquivos) |
 | `npm run build` | OK - `out/main` 62.45 kB |
 
+## Auditoria de integracao Fase 3 x Fase 4 (CONCLUIDA)
+
+Nao e uma fase nova - verificacao de que a inversao acidental (Fase 4 implementada antes da Fase 3) nao deixou codigo duplicado, harness concorrente ou estado inconsistente. **Nenhum defeito foi encontrado; nenhuma linha de codigo precisou mudar.**
+
+### Verificacoes estruturais (grep/leitura de codigo)
+
+| Verificacao | Resultado |
+|---|---|
+| Harness temporario (`GenerateReportPanel`) ainda existe | Nao - zero referencias, arquivo deletado |
+| `parsePrevisaoFile`/`parseRelacaoFile` tem mais de uma implementacao | Nao - uma cada, ambas importadas so por `importService.ts` (previa) e `pdfHandlers.ts` (geracao) |
+| `generatePrevisaoPdfs`/`generateRelacaoPdfs` tem mais de uma implementacao | Nao - uma, em `generateReportPdfs.ts`, chamada so por `pdfHandlers.ts` |
+| Canal IPC registrado mais de uma vez | Nao - cada canal tem exatamente 1 handler no main + 1 uso no preload |
+| `findUnconfiguredBranchCodes` duplicada entre previa e geracao | Nao - uma implementacao (`companies/branchConfiguration.ts`), usada pelos dois |
+| `getCompanyProfile` (perfil de empresa/filial) diverge entre previa e geracao | Nao - mesma funcao, mesmo `db`, chamada em `importHandlers.ts` e `pdfHandlers.ts` |
+| `reports.generatePdfs` chamado com caminho que nao seja a copia em Processamento | Nao - unico call site no renderer usa sempre `preview.workspaceFilePath` |
+| Padroes proibidos (`DISTINCT`/dedupe/base x percentual) em todo `src/` | Nenhum encontrado (unico "distinct" e um comentario em ingles descrevendo o helper) |
+| `importService.ts` escreve no `sourcePath` externo | Nao - so `copyFileSync(sourcePath, workspaceFilePath)`, nunca o inverso |
+
+### Validacao ponta a ponta com os dois arquivos reais anexados (fluxo oficial completo)
+
+Script temporario (deletado, nunca commitado) rodou o fluxo completo real - Entrada por arquivo -> copia para Processamento -> validacao -> parsing -> agrupamento -> previa -> geracao pelo pipeline da Fase 4 - para os dois modos:
+
+| | Previsao | Relacao |
+|---|---|---|
+| Linhas na previa | 165 | 1358 |
+| Documentos na previa | 26 | 38 |
+| PDFs efetivamente gerados | 26 | 38 |
+| Filiais/vendedores distintos nos PDFs gerados | 4 filiais / 18 vendedores | 4 filiais / 27 vendedores |
+| Filiais faltando configuracao | 0 | 0 |
+
+**Previa e geracao bateram numero por numero** (26=26, 38=38) - se previa e geracao usassem logica divergente em algum ponto, essa igualdade teria quebrado primeiro. Inspecionei visualmente um PDF de cada modo (Previsao filial 0103, Relacao filial 0104): logo Permetal renderizando com proporcao correta, cabecalho, identidade, tabela e total identicos ao validado na Fase 4 - nenhuma regressao visual. Nao houve necessidade de nenhum ajuste de design nesta etapa.
+
+### Confirmacoes explicitas do checklist do usuario
+
+- Drag-and-drop, seletor e watcher usam o mesmo servico - confirmado por leitura de codigo (todos chamam `reports:preview-import` -> `importFile()`).
+- Existe apenas uma implementacao autoritativa de cada parser e um unico pipeline de geracao - confirmado acima.
+- Perfis de empresa/filial sao os mesmos na previa e no PDF - confirmado (mesma funcao, mesmo banco).
+- Filial nao configurada bloqueia a geracao antes do PDF - confirmado com os 2 arquivos reais (missingBranchCodes vazio quando configurado; population correta quando testado com lookup vazio, ja documentado na Fase 3).
+- Nenhuma linha do Protheus desaparece, duplicidades permanecem - reconfirmado pelos 91 testes automatizados (inalterados) mais a igualdade previa=geracao com dados reais.
+- Total da Previsao soma somente `Comissao total (liquido)`; total da Relacao soma somente `Valor da Comissao` - reconfirmado por grep em todo `src/` e pelos valores exatos do PDF real (R$ 191,38 + R$ 168,47 = R$ 359,85, identico ao valor bruto do arquivo original).
+- Nenhuma comissao calculada por base/percentual - grep confirmou zero operacoes aritmeticas entre campos financeiros em todo o projeto.
+- Erros de modo errado e de cabecalho ausente sao claros - estruturados (`wrongMode`/`missingHeaders`) desde a Fase 3, inalterados.
+- Arquivos externos nunca sao modificados - confirmado por leitura de codigo (`importService.ts` so le `sourcePath`).
+
+### Comandos e resultados
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` | OK |
+| `npm run lint` | OK |
+| `npm run test` | OK - **91/91** testes (16 arquivos, inalterados) |
+| `npm run build` | OK - `out/main` 62.45 kB (identico a antes da auditoria - nenhum codigo mudou) |
+
+**Seguro prosseguir para a Fase 5.**
+
 ## Proximo passo
 
-Fase 5 (arquivamento/rotacao Gerados->Historico, tela de Historico, regenerar, excluir) ainda nao implementada. `batches` ja recebe um registro por geracao bem-sucedida (necessario para a deteccao de arquivo repetido desta fase), mas isso e so o minimo pedido - nenhuma rotacao de pastas, nenhuma UI de historico, nenhum regenerar/excluir foi feito. Nao iniciar sem aprovacao explicita.
+Fase 5 (arquivamento/rotacao Gerados->Historico, tela de Historico, regenerar, excluir) ainda nao implementada. `batches` ja recebe um registro por geracao bem-sucedida (necessario para a deteccao de arquivo repetido da Fase 3), mas isso e so o minimo pedido - nenhuma rotacao de pastas, nenhuma UI de historico, nenhum regenerar/excluir foi feito. Nao iniciar sem aprovacao explicita.

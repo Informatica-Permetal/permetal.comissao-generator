@@ -26,12 +26,12 @@ Read the project references before changing behavior. Treat the rules in this sk
 11. Keep all user data under the current Windows user's profile. Normal operation, file creation, history deletion, and printing must not require administrator rights.
 12. Operate fully offline in v1. Do not send commission data, filenames, seller names, client names, totals, or PDFs to external services.
 13. Preserve leading zeros in branch, seller, title, prefix, parcel, and order identifiers.
-14. Resolve fields by normalized header name, never by column position.
+14. Resolve fields by normalized header name, never by column position. The one documented exception: if a required header's normalized name matches more than one column (e.g. Previsao's Smart View export containing two columns both named `Vencimento`), never resolve it by position - block the import with an explanatory error instead. See `references/input-contracts.md`.
 15. Support Smart View whitespace quirks in headers and cell values.
 
 ## Source contracts
 
-Read `references/input-contracts.md` before implementing or changing Excel import behavior. The two v1 contracts are fixed to the files validated with the user.
+Read `references/input-contracts.md` before implementing or changing Excel import behavior. The two v2 contracts are fixed to the files validated with the user.
 
 - **Previsao mode** total field: `Comissao total (liquido)` (actual workbook header contains accents; see contract reference).
 - **Relacao mode** total field: `Valor da Comissao`.
@@ -134,7 +134,7 @@ The user will provide logos and may provide legal name, CNPJ, address, and other
 ## Resource map
 
 - `references/project-spec.md` - complete functional specification and UX.
-- `references/input-contracts.md` - exact v1 Smart View input fields and parsing rules.
+- `references/input-contracts.md` - exact v2 Smart View input fields and parsing rules.
 - `references/pdf-design.md` - PDF layout, pagination, signatures, branding, and print behavior.
 - `references/architecture.md` - technical stack, modules, storage, IPC, packaging, and data model.
 - `references/implementation-plan.md` - phased development plan and acceptance gates.

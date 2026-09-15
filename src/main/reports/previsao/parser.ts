@@ -2,10 +2,11 @@ import type ExcelJS from 'exceljs';
 import Decimal from 'decimal.js';
 import {
   collectNormalizedHeaders,
+  countNormalizedHeaderOccurrences,
   headersIncludeAllMarkers,
   locateAndMatchHeaders
 } from '../common/contractValidation';
-import { MissingHeadersError, WrongModeError } from '../common/errors';
+import { AmbiguousHeaderError, MissingHeadersError, WrongModeError } from '../common/errors';
 import { getFirstWorksheet, loadWorkbookFromFile } from '../common/workbookLoader';
 import { parseBrazilianDecimal } from '../common/numbers';
 import { parseCalendarDate } from '../common/dates';
@@ -63,6 +64,23 @@ export function parsePrevisaoWorksheet(sheet: ExcelJS.Worksheet): PrevisaoParseR
       'Previsao',
       validation.missingFields.map((field) => field.canonicalHeader)
     );
+  }
+
+  /**
+   * The Previsao Smart View export can contain two columns both literally
+   * named "Vencimento" (an earlier, wrong one and the intended one further
+   * down the field list). They are indistinguishable by name, so - unlike
+   * every other field - this is never resolved by silently picking one:
+   * the import is blocked and the user is told to fix the Smart View
+   * selection and re-export.
+   */
+  const vencimentoOccurrences = countNormalizedHeaderOccurrences(
+    sheet,
+    validation.headerRowNumber,
+    normalizeHeader('Vencimento')
+  );
+  if (vencimentoOccurrences > 1) {
+    throw new AmbiguousHeaderError('Previsao', 'Vencimento', vencimentoOccurrences);
   }
 
   const columnByKey = new Map(validation.matches.map((match) => [match.field.key, match.columnNumber]));

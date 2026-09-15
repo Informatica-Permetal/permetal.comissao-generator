@@ -111,6 +111,10 @@ Use codes as identity; names are display values.
 
 If the same code appears with inconsistent names in one source file, warn before generation. Do not invent a correction silently.
 
+### Future option (documented, not implemented): consolidated PDF per seller
+
+This split rule (`branch_code + seller_code`, one PDF per pair, never combining branches) is the only implemented behavior today and does not change. A possible future option - not implemented, and requiring explicit approval before any work starts - would add a user-selectable alternative mode that consolidates one seller's documents across all of that seller's branches into a single PDF, instead of one PDF per branch. If ever implemented: totals must still be computed and shown per branch section inside the consolidated document (never a single blended total across branches), and each section must keep its branch identity clearly visible, so consolidation never hides which branch a row belongs to.
+
 ## 8. Batch model
 
 One imported workbook creates one **batch**.
@@ -298,6 +302,7 @@ Block only when the system cannot safely produce the requested document, such as
 
 - wrong report contract for selected mode;
 - missing required headers;
+- ambiguous required header (e.g. Previsao with two columns both named `Vencimento` - see the input contracts section above); explain the ambiguity and how to fix it in Smart View, never resolve it by column position;
 - workbook unreadable/corrupt;
 - no data rows;
 - branch profile missing;
@@ -389,25 +394,34 @@ These contracts were validated against the two reduced `.xlsx` exports supplied 
 - Negative designated commission cells remain negative and reduce the total.
 - Keep original source order unless the PDF renderer groups Previsao rows by classification; even then preserve original relative order inside each classification.
 
-## Contract A - Previsao de Comissoes
+## Contract A - Previsao de Comissoes (13 required fields, v2)
 
-Validated workbook dimensions: 165 data rows and 13 columns. Observed branches were 0103, 0104, 0105, and 0106. Observed classifications included `Titulo original` and `Pedido de venda` (actual workbook labels contain Portuguese accents).
+Real validated reduced workbook: 165 data rows and 13 columns, matching exactly the required list below. Real "Todos os Campos" export: 165 data rows and 79 columns - confirms extra columns never break import, and is also the export that reproduces the Vencimento ambiguity described below. Observed branches were 0103, 0104, 0105, and 0106. Observed classifications included `Titulo original` and `Pedido de venda` (actual workbook labels contain Portuguese accents).
 
 ### Required fields
 
-1. `Dados do cliente` - Client display/audit data; do not use for financial decisions.
-2. `Dados do título` - Title/document display value.
-3. `Dados do pedido` - Order display value; may be blank for title rows.
-4. `Emissão pedido/título` - Display date only.
-5. `Vencimento` - Display date only.
-6. `Valor base para baixa` - Display base value only; NEVER use to derive commission.
-7. `Valor total de comissão` - Gross commission source/audit value; NEVER derive net from it.
-8. `DT Baixa` - Display/audit date only; NEVER use to decide inclusion.
-9. `Valor IRRF` - IRRF source/audit value; NEVER recalculate it.
-10. `Comissão total (líquido)` - Authoritative field for displayed commission and the ONLY field summed for the Previsao document total.
-11. `Dados do vendedor` - Contains seller code + seller name. Parse identity from this field without losing leading zeros.
-12. `Classificação` - Raw classification used for visual grouping only. Never filter eligibility based on it.
-13. `Nome da filial` - Contains branch code + branch name. Branch code is the document/company profile key.
+1. `Nome da filial` - Contains branch code + branch name. Branch code is the document/company profile key.
+2. `Dados do vendedor` - Contains seller code + seller name. Parse identity from this field without losing leading zeros.
+3. `Classificação` - Raw classification used for visual grouping only. Never filter eligibility based on it.
+4. `Dados do cliente` - Client display/audit data; do not use for financial decisions.
+5. `Dados do título` - Title/document display value.
+6. `Dados do pedido` - Order display value; may be blank for title rows.
+7. `Emissão pedido/título` - Display date only.
+8. `Vencimento` - Display date only. See "Vencimento ambiguity" below - this is the one field with a special, mandatory duplicate-header check.
+9. `DT Baixa` - Display/audit date only; NEVER use to decide inclusion.
+10. `Valor base para baixa` - Display base value only; NEVER use to derive commission.
+11. `Valor total de comissão` - Gross commission source/audit value; NEVER derive net from it.
+12. `Valor IRRF` - IRRF source/audit value; NEVER recalculate it.
+13. `Comissão total (líquido)` - Authoritative field for displayed commission and the ONLY field summed for the Previsao document total.
+
+### Vencimento ambiguity (mandatory check)
+
+The Previsao Smart View field list can contain two fields both literally named `Vencimento`: an earlier, incorrect one and the intended one further down the field list. Protheus does not give them distinct names - only their position in the Smart View field selection distinguishes them, and the user must select only the second one before exporting.
+
+- If exactly one column normalizes to `vencimento`, use it - this is the common, expected case.
+- If two or more columns normalize to `vencimento`, BLOCK the import. Never guess, never default to the first or last occurrence, never use column position to silently resolve it.
+- The blocking error must explain the ambiguity in plain language and instruct the user to return to the Smart View field selection, keep only the second `Vencimento` field selected (the one appearing further down the list), and re-export.
+- This is the one deliberate, documented exception to "never depend on column position" in the global import rules above: position is used only to detect and reject the ambiguous case, never to silently pick a value from it.
 
 ### Previsao identity parsing
 
@@ -424,27 +438,34 @@ The PDF may present a cleaned display form, but the raw value must remain availa
 
 For each `(branch_code, seller_code)` group, total exactly the source field `Comissão total (líquido)` using decimal-safe arithmetic. Do not sum `Valor total de comissão` as a replacement and do not derive the total from base or percentage.
 
-## Contract B - Relacao de Comissoes
+## Contract B - Relacao de Comissoes (12 required fields, v2)
 
-Validated workbook dimensions: 1358 data rows and 15 columns. Observed branches were 0103, 0104, 0105, and 0106. In the validated sample all rows were record type `Comissao` and origin `Baixa` (actual workbook value uses Portuguese accent in `Comissao`). This is evidence about the sample, not a filtering rule.
+Real validated reduced workbook: 1375 data rows and 12 columns, matching exactly the required list below. Real "Todos os Campos" export: 1375 data rows and 35 columns, including duplicate-named optional columns (e.g. two `Nome do cliente` columns) - confirms extra and duplicate-named non-required columns never block import. Observed branches were 0103, 0104, 0105, and 0106. In the validated sample all rows were record type `Comissao` and origin `Baixa` (actual workbook value uses Portuguese accent in `Comissao`). This is evidence about the sample, not a filtering rule.
 
 ### Required fields
 
-1. `Tipo de Registro` - Source record type; validate/report unexpected values but do not silently filter.
-2. `Nome do Vendedor` - Seller display name; trim padding spaces.
-3. `Filial do Sistema` - Authoritative branch code for grouping and company profile lookup.
-4. `Codigo do Vendedor` - Authoritative seller code for grouping; preserve leading zeros.
-5. `Prefixo` - Title prefix display/audit identifier; preserve leading zeros.
-6. `Numero do Titulo Original` - Original title number display/audit identifier; preserve leading zeros.
-7. `Parcela` - Parcel identifier; preserve leading zeros/blank values.
-8. `Nome do cliente` - Client display name; trim padding spaces.
-9. `Data de Baixa do Titulo` - Display/audit date only; never use to decide whether a row is payable.
-10. `Data do Pgto da Comissao` - Display/audit date only; never use to exclude paid/unpaid rows.
-11. `Numero do Pedido` - Order number display/audit identifier; preserve leading zeros.
-12. `Valor Base da Comissao` - Base value for display only; NEVER use to derive commission.
-13. `% Comissao sobre Vl.Base` - Percentage for display only; NEVER use to derive commission.
-14. `Valor da Comissao` - Authoritative field for displayed commission and the ONLY field summed for the Relacao document total.
-15. `Comissao gerada pela B/E` - Source B/E classification; warn on unexpected values but do not silently filter.
+1. `Filial do Sistema` - Authoritative branch code for grouping and company profile lookup.
+2. `Codigo do Vendedor` - Authoritative seller code for grouping; preserve leading zeros.
+3. `Nome do Vendedor` - Seller display name; trim padding spaces.
+4. `Prefixo` - Title prefix display/audit identifier; preserve leading zeros.
+5. `Numero do Titulo Original` - Original title number display/audit identifier; preserve leading zeros.
+6. `Parcela` - Parcel identifier; preserve leading zeros/blank values.
+7. `Nome do cliente` - Client display name; trim padding spaces.
+8. `Data de Baixa do Titulo` - Display/audit date only; never use to decide whether a row is payable.
+9. `Numero do Pedido` - Order number display/audit identifier; preserve leading zeros.
+10. `Valor Base da Comissao` - Base value for display only; NEVER use to derive commission.
+11. `% Comissao sobre Vl.Base` - Percentage for display only; NEVER use to derive commission.
+12. `Valor da Comissao` - Authoritative field for displayed commission and the ONLY field summed for the Relacao document total.
+
+### Optional fields (no longer required, v2)
+
+These three fields were required in v1 and are not anymore. Never reject a Relacao workbook solely because one or more of them is missing:
+
+- `Tipo de Registro` - when present, validate/report unexpected values (still non-blocking) exactly as before; when the column is absent, skip the check entirely - do not warn about a missing value that was never expected.
+- `Data do Pgto da Comissao` - when present, display/audit date only, exactly as before; when absent, treat every row as if it were blank.
+- `Comissao gerada pela B/E` - when present, warn on unexpected values (still non-blocking) exactly as before; when absent, skip the check entirely.
+
+If present, these fields keep every v1 behavior unchanged (validation, warnings, display). The only change is that their column may legitimately not exist in the workbook at all.
 
 ### Relacao document identity
 
@@ -559,7 +580,7 @@ Title display may combine source `Prefixo`, `Numero do Titulo Original`, and `Pa
 
 Do not calculate commission from base and percentage. `% Comissao` is displayed exactly as Protheus data after numeric formatting.
 
-`Data do Pgto da Comissao` and `Comissao gerada pela B/E` are audit fields. They do not need to consume table width by default. If the provided reference design or later requirement asks for them, they can appear in a secondary detail area. Never use them to filter rows.
+`Data do Pgto da Comissao` and `Comissao gerada pela B/E` are audit fields, optional since the v2 input contract - the source workbook may not include them at all. They do not need to consume table width by default. If the provided reference design or later requirement asks for them, they can appear in a secondary detail area only when present in the source. Never use them to filter rows.
 
 End summary:
 

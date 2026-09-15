@@ -40,6 +40,7 @@ export type ImportServiceError =
   | { kind: 'alreadyProcessing'; message: string }
   | { kind: 'wrongMode'; expectedMode: ReportMode; detectedMode: ReportMode }
   | { kind: 'missingHeaders'; mode: ReportMode; missingHeaders: string[] }
+  | { kind: 'ambiguousHeader'; mode: ReportMode; header: string; occurrences: number; message: string }
   | { kind: 'unreadable'; message: string };
 
 export type ImportResult = { ok: true; preview: BatchPreview } | { ok: false; error: ImportServiceError };

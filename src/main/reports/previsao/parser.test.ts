@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { MissingHeadersError, WrongModeError } from '../common/errors';
+import { AmbiguousHeaderError, MissingHeadersError, WrongModeError } from '../common/errors';
 import { createFixtureDir, removeFixtureDir, writeFixtureWorkbook } from '../testSupport/xlsxFixtures';
 import { parsePrevisaoFile } from './parser';
 
@@ -243,5 +243,67 @@ describe('parsePrevisaoFile - coluna obrigatoria ausente', () => {
       expect(error).toBeInstanceOf(MissingHeadersError);
       expect((error as MissingHeadersError).missingHeaders).toContain('Comissao total (liquido)');
     }
+  });
+});
+
+describe('parsePrevisaoFile - ambiguidade de Vencimento', () => {
+  it('aceita normalmente quando existe apenas uma coluna Vencimento', async () => {
+    const path = await writeFixtureWorkbook(dir, 'previsao-um-vencimento.xlsx', HEADERS, [row()]);
+    const result = await parsePrevisaoFile(path);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].vencimento).not.toBeNull();
+  });
+
+  it('bloqueia com erro explicativo quando existem duas colunas Vencimento', async () => {
+    // Reproduz o export "Todos os Campos" real do Smart View: um Vencimento
+    // (errado, mais acima na lista de campos) e outro Vencimento (o correto,
+    // mais abaixo). Nunca deve escolher um dos dois silenciosamente.
+    const headersWithDuplicateVencimento = [...HEADERS, 'Vencimento'];
+    const rowWithDuplicateVencimento = [...row(), '02/03/2026'];
+    const path = await writeFixtureWorkbook(
+      dir,
+      'previsao-dois-vencimento.xlsx',
+      headersWithDuplicateVencimento,
+      [rowWithDuplicateVencimento]
+    );
+
+    await expect(parsePrevisaoFile(path)).rejects.toBeInstanceOf(AmbiguousHeaderError);
+    try {
+      await parsePrevisaoFile(path);
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toBeInstanceOf(AmbiguousHeaderError);
+      const ambiguous = error as AmbiguousHeaderError;
+      expect(ambiguous.mode).toBe('Previsao');
+      expect(ambiguous.header).toBe('Vencimento');
+      expect(ambiguous.occurrences).toBe(2);
+      expect(ambiguous.message).toContain('segundo');
+    }
+  });
+});
+
+describe('parsePrevisaoFile - normalizacao de cabecalho (espacos/acento/case)', () => {
+  it('resolve cabecalhos reais com acentuacao e caixa alta do Smart View', async () => {
+    // Cabecalhos como realmente exportados pelo Smart View em producao
+    // (acentos e trailing spaces reais observados nos arquivos validados).
+    const realWorldHeaders = [
+      'Dados do cliente',
+      'DADOS DO TÍTULO',
+      'Dados do pedido',
+      'Emissão pedido/título',
+      'Vencimento  ',
+      'Valor base para baixa',
+      'Valor total de comissão',
+      'DT Baixa    ',
+      'Valor IRRF',
+      'Comissão total (líquido)',
+      'dados do vendedor',
+      'Classificação',
+      'Nome da filial'
+    ];
+    const path = await writeFixtureWorkbook(dir, 'previsao-acentos.xlsx', realWorldHeaders, [row()]);
+    const result = await parsePrevisaoFile(path);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].comissaoTotalLiquido?.toString()).toBe('140');
   });
 });

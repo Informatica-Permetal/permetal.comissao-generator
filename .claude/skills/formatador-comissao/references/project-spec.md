@@ -111,6 +111,10 @@ Use codes as identity; names are display values.
 
 If the same code appears with inconsistent names in one source file, warn before generation. Do not invent a correction silently.
 
+### Future option (documented, not implemented): consolidated PDF per seller
+
+This split rule (`branch_code + seller_code`, one PDF per pair, never combining branches) is the only implemented behavior today and does not change. A possible future option - not implemented, and requiring explicit approval before any work starts - would add a user-selectable alternative mode that consolidates one seller's documents across all of that seller's branches into a single PDF, instead of one PDF per branch. If ever implemented: totals must still be computed and shown per branch section inside the consolidated document (never a single blended total across branches), and each section must keep its branch identity clearly visible, so consolidation never hides which branch a row belongs to.
+
 ## 8. Batch model
 
 One imported workbook creates one **batch**.
@@ -298,6 +302,7 @@ Block only when the system cannot safely produce the requested document, such as
 
 - wrong report contract for selected mode;
 - missing required headers;
+- ambiguous required header (e.g. Previsao with two columns both named `Vencimento` - see `references/input-contracts.md`); explain the ambiguity and how to fix it in Smart View, never resolve it by column position;
 - workbook unreadable/corrupt;
 - no data rows;
 - branch profile missing;

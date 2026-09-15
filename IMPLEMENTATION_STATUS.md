@@ -890,3 +890,70 @@ Versao elevada `1.0.0` -> `1.1.0` (build visivelmente diferente - evita sobrescr
 Smoke test reduzido (nao o roteiro completo de 14 passos da Fase 6/7, ja coberto anteriormente) - suficiente para confirmar que o pacote nao esta corrompido e reflete a nova UI/PDF. Recomenda-se um passe manual completo (import real, geracao, impressao) antes de distribuir para os usuarios finais.
 
 **PARADO conforme instruido - nao prosseguir para a Fase 8 (ou etapa equivalente) sem aprovacao explicita.**
+
+## Atualizacao do contrato de engenharia dos relatorios (v2) (CONCLUIDA)
+
+Fase explicitamente de **contrato/engenharia**, nao visual: revisao dos campos obrigatorios dos dois modos de importacao a partir de 4 arquivos `.xlsx` reais fornecidos pelo usuario (2 reduzidos + 2 "Todos os Campos"), validados localmente e nunca commitados. Nenhuma mudanca de UI/PDF nesta fase.
+
+### O que mudou
+
+- **Relacao de Comissoes**: passa de 15 para **12 campos obrigatorios**. `Tipo de Registro`, `Data do Pgto da Comissao` e `Comissao gerada pela B/E` deixam de ser obrigatorios - continuam sendo lidos e usados (mesmo aviso nao-bloqueante de sempre) quando presentes, mas a ausencia deles nunca bloqueia nem gera aviso.
+- **Previsao de Comissoes**: continua com os mesmos **13 campos obrigatorios** (nenhum campo mudou), mas ganhou uma regra nova: o export "Todos os Campos" real do Smart View comprovadamente contem **duas colunas chamadas `Vencimento`**. Duas ou mais colunas `Vencimento` apos normalizacao agora **bloqueiam a importacao** com um erro explicativo orientando o usuario a deixar selecionado apenas o segundo `Vencimento` no Smart View. Uma unica coluna continua sendo aceita normalmente. Esta e a unica excecao documentada a "nunca depender de posicao de coluna" - a posicao e usada somente para detectar e rejeitar a ambiguidade, nunca para escolher um valor silenciosamente.
+- Colunas extras (inclusive nomes duplicados em campos nao-obrigatorios, como dois `Nome do cliente` no arquivo real "Todos os Campos - Relacao") continuam nunca bloqueando a importacao.
+
+### Implementacao
+
+- `src/main/reports/relacao/contract.ts` - `RELACAO_FIELDS` reduzido a 12; novo `RELACAO_OPTIONAL_FIELDS` com os 3 campos antigos.
+- `src/main/reports/relacao/parser.ts` - resolve os campos obrigatorios via `locateAndMatchHeaders` (bloqueante) e os opcionais via a nova `matchOptionalHeaders` (nunca bloqueante); novo acesso seguro `cellValue()` evita ler `getCell(undefined)` quando a coluna opcional nao existe (bug silencioso que existiria se apenas a lista de campos fosse reduzida sem tocar o parser).
+- `src/main/reports/previsao/parser.ts` - nova checagem `countNormalizedHeaderOccurrences(sheet, headerRowNumber, 'vencimento')` logo apos a validacao dos obrigatorios; lanca `AmbiguousHeaderError` quando ha 2+ ocorrencias.
+- `src/main/reports/common/contractValidation.ts` - novas funcoes reutilizaveis `matchOptionalHeaders` e `countNormalizedHeaderOccurrences`.
+- `src/main/reports/common/errors.ts` - nova `AmbiguousHeaderError` (mode, header, occurrences, mensagem explicativa em portugues).
+- `src/shared/types/import.ts` - novo `ImportServiceError` kind `'ambiguousHeader'`.
+- `src/main/import/importService.ts` - converte `AmbiguousHeaderError` para o erro estruturado `ambiguousHeader`.
+- `src/renderer/src/components/ImportPage.tsx` - novo `case 'ambiguousHeader'` no switch de erros, reaproveitando o `message-banner--error` ja existente (nenhuma mudanca visual nova).
+
+### Validacao com os 4 arquivos reais (local, nao commitado)
+
+| Arquivo real | Resultado |
+|---|---|
+| `Previsão de comissões(Campos Novos).xlsx` (13 col.) | Importou com sucesso - 165 linhas, 26 grupos |
+| `Relação de Comissões(Campos Novos).xlsx` (12 col.) | Importou com sucesso - 1374 linhas, 38 grupos |
+| `Todos os Campos - Previsão de comissões.xlsx` (79 col., 2x `Vencimento`) | **Bloqueado corretamente** com `AmbiguousHeaderError` - mensagem: "A coluna \"Vencimento\" aparece 2 vezes no arquivo. No Smart View, deixe selecionado apenas o segundo campo..." |
+| `Todos os Campos - Relação de Comissões.xlsx` (35 col., `Nome do cliente` duplicado) | Importou com sucesso - 1374 linhas, 38 grupos (identico ao arquivo reduzido), zero avisos, `Nome do cliente` resolvido corretamente pela primeira ocorrencia |
+
+Script de validacao foi temporario (`manualRealFileCheck.test.ts`) e foi deletado apos a validacao, conforme instruido.
+
+### Testes automatizados (fixtures sinteticas, sem dados reais)
+
+Novos casos cobrindo exatamente o que foi pedido, em `src/main/reports/relacao/parser.test.ts`, `src/main/reports/previsao/parser.test.ts` e `src/main/import/importService.test.ts`:
+
+- Relacao com exatamente os 12 obrigatorios (sem nenhum extra);
+- Relacao com os 12 + os 3 antigos como extras;
+- Relacao confirmando que a ausencia dos 3 antigos campos nao gera erro nem aviso;
+- Relacao ainda bloqueando quando falta um dos 12 obrigatorios;
+- Previsao com uma unica coluna Vencimento (sucesso);
+- Previsao com duas colunas Vencimento (bloqueio com `AmbiguousHeaderError`, mode/header/occurrences/mensagem conferidos);
+- normalizacao de cabecalho com acentos/caixa alta/espacos reais de producao (ambos os modos);
+- colunas reordenadas, duplicadas, zero e negativo preservados - todos os testes ja existentes permanecem inalterados e verdes.
+
+### Documentacao atualizada
+
+`SKILL.md`, `references/input-contracts.md` (reescrito para v2, com a secao "Vencimento ambiguity" e "Optional fields"), `references/project-spec.md`, `references/implementation-plan.md`, `references/pdf-design.md`, `docs/Formatador-Comissao-Especificacao.md` (mesmas mudancas espelhadas), mais este arquivo. `references/architecture.md` nao precisou de mudancas (nao lista campos especificos).
+
+Documentada tambem a opcao futura (nao implementada, requer aprovacao explicita) de **PDF consolidado por vendedor** (todas as filiais de um vendedor em um unico PDF, como alternativa ao modo atual por filial) em `references/input-contracts.md` e `references/project-spec.md` - a regra atual de um PDF por par filial+vendedor permanece a unica implementada.
+
+### Testes tecnicos
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK |
+| `npm run lint` | OK - 0 erros, 2 avisos pre-existentes inalterados |
+| `npm run test` | OK - **124/124** testes (9 novos + 115 anteriores, todos verdes) |
+| `npm run build` | OK |
+
+### Pendencias / limitacoes
+
+- `npm run dist` (instalador) nao foi regenerado nesta fase - mudanca e apenas de main process, sem impacto visual; nao ha necessidade de novo instalador so por causa desta fase, mas recomenda-se incluir na proxima geracao de release.
+- Nenhuma mudanca de UI/PDF foi feita, conforme instruido explicitamente ("sem mexer ainda no visual final").
+
+**PARADO conforme instruido.**

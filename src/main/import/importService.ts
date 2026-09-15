@@ -6,7 +6,7 @@ import type { CompanyProfile } from '@shared/types/companyProfile';
 import type { BatchPreview, ImportRequest, ImportResult } from '@shared/types/import';
 import { findUnconfiguredBranchCodes } from '../companies/branchConfiguration';
 import { formatCurrencyBRL } from '../pdf/format';
-import { MissingHeadersError, WrongModeError } from '../reports/common/errors';
+import { AmbiguousHeaderError, MissingHeadersError, WrongModeError } from '../reports/common/errors';
 import { parsePrevisaoFile } from '../reports/previsao/parser';
 import { parseRelacaoFile } from '../reports/relacao/parser';
 import { findLatestBatchBySourceHash } from '../storage/batchRepository';
@@ -111,6 +111,18 @@ async function runImport(request: ImportRequest, deps: ImportServiceDeps, fileNa
     }
     if (error instanceof MissingHeadersError) {
       return { ok: false, error: { kind: 'missingHeaders', mode: error.mode, missingHeaders: error.missingHeaders } };
+    }
+    if (error instanceof AmbiguousHeaderError) {
+      return {
+        ok: false,
+        error: {
+          kind: 'ambiguousHeader',
+          mode: error.mode,
+          header: error.header,
+          occurrences: error.occurrences,
+          message: error.message
+        }
+      };
     }
     return {
       ok: false,

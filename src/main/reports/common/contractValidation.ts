@@ -75,6 +75,41 @@ function matchHeadersInRow(
   return { headerRowNumber: rowNumber, matches, missingFields };
 }
 
+/**
+ * Resolves fields by header name without requiring them to be present. A
+ * field whose header is absent from the row is simply omitted from the
+ * result - callers must treat a missing column as "no value", never as an
+ * error. Used for fields that are no longer mandatory for import to succeed
+ * but should still be read and used when the source happens to include them.
+ */
+export function matchOptionalHeaders(
+  sheet: ExcelJS.Worksheet,
+  headerRowNumber: number,
+  fields: readonly FieldDefinition[]
+): HeaderMatch[] {
+  return matchHeadersInRow(sheet, headerRowNumber, fields).matches;
+}
+
+/**
+ * Counts how many columns in the header row normalize to the exact given
+ * name. Used only to detect an ambiguous required header (e.g. Previsao's
+ * Smart View export can contain two columns both named "Vencimento") -
+ * column position must never be used to silently pick one of them.
+ */
+export function countNormalizedHeaderOccurrences(
+  sheet: ExcelJS.Worksheet,
+  headerRowNumber: number,
+  normalizedHeaderTarget: string
+): number {
+  const row = sheet.getRow(headerRowNumber);
+  let count = 0;
+  row.eachCell({ includeEmpty: false }, (cell) => {
+    const actualHeader = cell.value == null ? '' : String(cell.value);
+    if (normalizeHeader(actualHeader) === normalizedHeaderTarget) count++;
+  });
+  return count;
+}
+
 /** Collects every normalized header found in the first few rows, for wrong-mode detection. */
 export function collectNormalizedHeaders(sheet: ExcelJS.Worksheet): Set<string> {
   const headers = new Set<string>();

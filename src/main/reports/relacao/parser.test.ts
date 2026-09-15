@@ -3,8 +3,8 @@ import { MissingHeadersError, WrongModeError } from '../common/errors';
 import { createFixtureDir, removeFixtureDir, writeFixtureWorkbook } from '../testSupport/xlsxFixtures';
 import { parseRelacaoFile } from './parser';
 
+/** The 12 required v2 fields, plus the 3 old fields (now optional) at the end. */
 const HEADERS = [
-  'Tipo de Registro',
   'Nome do Vendedor',
   'Filial do Sistema',
   'Codigo do Vendedor',
@@ -13,13 +13,17 @@ const HEADERS = [
   'Parcela',
   'Nome do cliente',
   'Data de Baixa do Titulo',
-  'Data do Pgto da Comissao',
   'Numero do Pedido',
   'Valor Base da Comissao',
   '% Comissao sobre Vl.Base',
   'Valor da Comissao',
+  'Tipo de Registro',
+  'Data do Pgto da Comissao',
   'Comissao gerada pela B/E'
 ];
+
+/** Exactly the 12 required v2 fields - no optional extras at all. */
+const REQUIRED_ONLY_HEADERS = HEADERS.slice(0, 12);
 
 function row(overrides: Partial<Record<(typeof HEADERS)[number], unknown>> = {}): unknown[] {
   const base: Record<string, unknown> = {
@@ -40,6 +44,11 @@ function row(overrides: Partial<Record<(typeof HEADERS)[number], unknown>> = {})
     'Comissao gerada pela B/E': 'Baixa'
   };
   return HEADERS.map((header) => (header in overrides ? overrides[header] : base[header]));
+}
+
+function requiredOnlyRow(overrides: Partial<Record<(typeof HEADERS)[number], unknown>> = {}): unknown[] {
+  const fullRow = row(overrides);
+  return REQUIRED_ONLY_HEADERS.map((header) => fullRow[HEADERS.indexOf(header)]);
 }
 
 let dir: string;
@@ -260,5 +269,76 @@ describe('parseRelacaoFile - avisos nao bloqueantes', () => {
     const result = await parseRelacaoFile(path);
     expect(result.rows).toHaveLength(1);
     expect(result.warnings.some((w) => w.includes('B/E'))).toBe(true);
+  });
+});
+
+describe('parseRelacaoFile - contrato v2: 12 campos obrigatorios', () => {
+  it('importa com sucesso contendo apenas os 12 campos obrigatorios, sem nenhum extra', async () => {
+    const path = await writeFixtureWorkbook(dir, 'relacao-12-campos.xlsx', REQUIRED_ONLY_HEADERS, [
+      requiredOnlyRow()
+    ]);
+    const result = await parseRelacaoFile(path);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].valorDaComissao?.toString()).toBe('150');
+    expect(result.groups[0].total.toString()).toBe('150');
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it('importa com sucesso com os 12 obrigatorios + os 3 antigos campos como extras', async () => {
+    const path = await writeFixtureWorkbook(dir, 'relacao-12-mais-3.xlsx', HEADERS, [row()]);
+    const result = await parseRelacaoFile(path);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].valorDaComissao?.toString()).toBe('150');
+  });
+
+  it('Tipo de Registro, Data do Pgto da Comissao e Comissao gerada pela B/E nao sao mais obrigatorios', async () => {
+    const headersWithoutOldFields = HEADERS.filter(
+      (h) => !['Tipo de Registro', 'Data do Pgto da Comissao', 'Comissao gerada pela B/E'].includes(h)
+    );
+    const rowWithoutOldFields = row().filter((_, index) => headersWithoutOldFields.includes(HEADERS[index]));
+    const path = await writeFixtureWorkbook(dir, 'relacao-sem-antigos.xlsx', headersWithoutOldFields, [
+      rowWithoutOldFields
+    ]);
+    const result = await parseRelacaoFile(path);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].tipoDeRegistro).toBe('');
+    expect(result.rows[0].dataDoPgtoDaComissao).toBeNull();
+    expect(result.rows[0].comissaoGeradaPelaBE).toBeNull();
+    // a ausencia da coluna nunca deve gerar aviso - so um valor inesperado gera aviso
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it('continua bloqueando quando falta um dos 12 campos obrigatorios (ex.: Filial do Sistema)', async () => {
+    const headersMissingOne = REQUIRED_ONLY_HEADERS.filter((h) => h !== 'Filial do Sistema');
+    const rowMissingOne = requiredOnlyRow().filter(
+      (_, index) => REQUIRED_ONLY_HEADERS[index] !== 'Filial do Sistema'
+    );
+    const path = await writeFixtureWorkbook(dir, 'relacao-sem-filial.xlsx', headersMissingOne, [rowMissingOne]);
+    await expect(parseRelacaoFile(path)).rejects.toBeInstanceOf(MissingHeadersError);
+  });
+});
+
+describe('parseRelacaoFile - normalizacao de cabecalho (espacos/acento/case)', () => {
+  it('resolve cabecalhos reais com acentuacao, caixa alta e espacamento do Smart View', async () => {
+    // Cabecalhos como realmente exportados pelo Smart View em producao, incluindo
+    // variantes de caixa que nao aparecem em nenhum outro fixture deste arquivo.
+    const realWorldHeaders = [
+      'NOME DO VENDEDOR',
+      'Filial do Sistema',
+      'codigo do vendedor',
+      'Prefixo',
+      'Numero do Titulo Original',
+      'Parcela',
+      'Nome do cliente',
+      'Data de Baixa do Titulo',
+      'Numero do Pedido',
+      'Valor Base da Comissao',
+      '% Comissao sobre Vl.Base',
+      'Valor da Comissão' // acento real do Protheus
+    ];
+    const path = await writeFixtureWorkbook(dir, 'relacao-acentos.xlsx', realWorldHeaders, [requiredOnlyRow()]);
+    const result = await parseRelacaoFile(path);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].valorDaComissao?.toString()).toBe('150');
   });
 });

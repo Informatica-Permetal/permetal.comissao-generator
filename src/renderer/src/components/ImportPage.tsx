@@ -241,6 +241,13 @@ function ImportErrorMessage({
           Colunas obrigatorias ausentes: {error.missingHeaders.join(', ')}
         </div>
       );
+    case 'ambiguousHeader':
+      return (
+        <div className="message-banner message-banner--error">
+          <AlertCircle size={16} />
+          {error.message}
+        </div>
+      );
     case 'temporaryFile':
     case 'alreadyProcessing':
     case 'unsupportedFileType':

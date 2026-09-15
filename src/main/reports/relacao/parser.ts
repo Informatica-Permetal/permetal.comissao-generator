@@ -3,7 +3,8 @@ import Decimal from 'decimal.js';
 import {
   collectNormalizedHeaders,
   headersIncludeAllMarkers,
-  locateAndMatchHeaders
+  locateAndMatchHeaders,
+  matchOptionalHeaders
 } from '../common/contractValidation';
 import { MissingHeadersError, WrongModeError } from '../common/errors';
 import { getFirstWorksheet, loadWorkbookFromFile } from '../common/workbookLoader';
@@ -17,6 +18,7 @@ import {
   EXPECTED_TIPO_DE_REGISTRO,
   PREVISAO_MARKERS,
   RELACAO_FIELDS,
+  RELACAO_OPTIONAL_FIELDS,
   RELACAO_TOTAL_FIELD_KEY
 } from './contract';
 
@@ -67,6 +69,9 @@ export function parseRelacaoWorksheet(sheet: ExcelJS.Worksheet): RelacaoParseRes
   }
 
   const columnByKey = new Map(validation.matches.map((match) => [match.field.key, match.columnNumber]));
+  for (const match of matchOptionalHeaders(sheet, validation.headerRowNumber, RELACAO_OPTIONAL_FIELDS)) {
+    columnByKey.set(match.field.key, match.columnNumber);
+  }
   const warnings: string[] = [];
   const knownNameByCode = new Map<string, string>();
   const rows: RelacaoParsedRow[] = [];
@@ -75,13 +80,18 @@ export function parseRelacaoWorksheet(sheet: ExcelJS.Worksheet): RelacaoParseRes
     const excelRow = sheet.getRow(rowNumber);
     if (excelRow.cellCount === 0) continue;
 
+    /** Optional fields may have no column at all - never call getCell(undefined). */
+    const cellValue = (key: string): ExcelJS.CellValue | null => {
+      const columnNumber = columnByKey.get(key);
+      return columnNumber == null ? null : excelRow.getCell(columnNumber).value;
+    };
     const cell = (key: string) => excelRow.getCell(columnByKey.get(key) as number);
 
     const filialCodigo = cellToTrimmedString(cell('filialDoSistema').value);
     const vendedorCodigo = cellToTrimmedString(cell('codigoDoVendedor').value);
     const nomeDoVendedor = cellToTrimmedString(cell('nomeDoVendedor').value);
-    const tipoDeRegistro = cellToTrimmedString(cell('tipoDeRegistro').value);
-    const comissaoGeradaPelaBE = cellToNullableTrimmedString(cell('comissaoGeradaPelaBE').value);
+    const tipoDeRegistro = cellToTrimmedString(cellValue('tipoDeRegistro'));
+    const comissaoGeradaPelaBE = cellToNullableTrimmedString(cellValue('comissaoGeradaPelaBE'));
 
     if (filialCodigo === '' && vendedorCodigo === '') continue; // fully blank trailing row
 
@@ -118,7 +128,7 @@ export function parseRelacaoWorksheet(sheet: ExcelJS.Worksheet): RelacaoParseRes
       parcela: cellToNullableTrimmedString(cell('parcela').value),
       nomeDoCliente: cellToNullableTrimmedString(cell('nomeDoCliente').value),
       dataDeBaixaDoTitulo: parseCalendarDate(cell('dataDeBaixaDoTitulo').value),
-      dataDoPgtoDaComissao: parseCalendarDate(cell('dataDoPgtoDaComissao').value),
+      dataDoPgtoDaComissao: parseCalendarDate(cellValue('dataDoPgtoDaComissao')),
       numeroDoPedido: cellToNullableTrimmedString(cell('numeroDoPedido').value),
       valorBaseDaComissao: parseBrazilianDecimal(cell('valorBaseDaComissao').value, 'Valor Base da Comissao'),
       percentComissaoSobreVlBase: parseBrazilianDecimal(

@@ -67,7 +67,7 @@ Title display may combine source `Prefixo`, `Numero do Titulo Original`, and `Pa
 
 Do not calculate commission from base and percentage. `% Comissao` is displayed exactly as Protheus data after numeric formatting.
 
-`Data do Pgto da Comissao` and `Comissao gerada pela B/E` are audit fields. They do not need to consume table width by default. If the provided reference design or later requirement asks for them, they can appear in a secondary detail area. Never use them to filter rows.
+`Data do Pgto da Comissao` and `Comissao gerada pela B/E` are audit fields, optional since the v2 input contract (`references/input-contracts.md`) - the source workbook may not include them at all. They do not need to consume table width by default. If the provided reference design or later requirement asks for them, they can appear in a secondary detail area only when present in the source. Never use them to filter rows.
 
 End summary:
 

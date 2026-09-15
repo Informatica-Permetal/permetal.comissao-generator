@@ -1,20 +1,29 @@
 import type { FieldDefinition } from '../common/contractValidation';
 
 export const RELACAO_FIELDS: readonly FieldDefinition[] = [
-  { key: 'tipoDeRegistro', canonicalHeader: 'Tipo de Registro' },
-  { key: 'nomeDoVendedor', canonicalHeader: 'Nome do Vendedor' },
   { key: 'filialDoSistema', canonicalHeader: 'Filial do Sistema' },
   { key: 'codigoDoVendedor', canonicalHeader: 'Codigo do Vendedor' },
+  { key: 'nomeDoVendedor', canonicalHeader: 'Nome do Vendedor' },
   { key: 'prefixo', canonicalHeader: 'Prefixo' },
   { key: 'numeroDoTituloOriginal', canonicalHeader: 'Numero do Titulo Original' },
   { key: 'parcela', canonicalHeader: 'Parcela' },
   { key: 'nomeDoCliente', canonicalHeader: 'Nome do cliente' },
   { key: 'dataDeBaixaDoTitulo', canonicalHeader: 'Data de Baixa do Titulo' },
-  { key: 'dataDoPgtoDaComissao', canonicalHeader: 'Data do Pgto da Comissao' },
   { key: 'numeroDoPedido', canonicalHeader: 'Numero do Pedido' },
   { key: 'valorBaseDaComissao', canonicalHeader: 'Valor Base da Comissao' },
   { key: 'percentComissaoSobreVlBase', canonicalHeader: '% Comissao sobre Vl.Base' },
-  { key: 'valorDaComissao', canonicalHeader: 'Valor da Comissao' },
+  { key: 'valorDaComissao', canonicalHeader: 'Valor da Comissao' }
+] as const;
+
+/**
+ * No longer required for import to succeed (v2 contract). Still read and
+ * used for their existing audit/warning behavior when present; simply absent
+ * from the parsed row (never an error, never a warning) when the column is
+ * missing from the workbook.
+ */
+export const RELACAO_OPTIONAL_FIELDS: readonly FieldDefinition[] = [
+  { key: 'tipoDeRegistro', canonicalHeader: 'Tipo de Registro' },
+  { key: 'dataDoPgtoDaComissao', canonicalHeader: 'Data do Pgto da Comissao' },
   { key: 'comissaoGeradaPelaBE', canonicalHeader: 'Comissao gerada pela B/E' }
 ] as const;
 

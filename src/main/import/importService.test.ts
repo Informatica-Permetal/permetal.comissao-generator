@@ -182,6 +182,30 @@ describe('importFile - modo errado', () => {
   });
 });
 
+describe('importFile - cabecalho ambiguo (Vencimento duplicado)', () => {
+  it('retorna erro estruturado ambiguousHeader em vez de escolher uma coluna silenciosamente', async () => {
+    const headersWithDuplicateVencimento = [...PREVISAO_HEADERS, 'Vencimento'];
+    const rowWithDuplicateVencimento = [...previsaoRow(), '02/03/2026'];
+    const sourcePath = await writeFixtureWorkbook(
+      sourceDir,
+      'previsao-dois-vencimento.xlsx',
+      headersWithDuplicateVencimento,
+      [rowWithDuplicateVencimento]
+    );
+
+    const result = await importFile(
+      { mode: 'Previsao', sourcePath, sourceKind: 'external' },
+      { db, reportRoot, lookupCompanyProfile: lookupOnly0103 }
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.kind).toBe('ambiguousHeader');
+    if (result.error.kind !== 'ambiguousHeader') return;
+    expect(result.error.header).toBe('Vencimento');
+    expect(result.error.occurrences).toBe(2);
+  });
+});
+
 describe('importFile - coluna obrigatoria ausente', () => {
   it('retorna erro estruturado missingHeaders com a lista de colunas', async () => {
     const headersMissingOne = PREVISAO_HEADERS.filter((h) => h !== 'Comissao total (liquido)');

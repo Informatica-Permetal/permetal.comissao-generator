@@ -55,11 +55,12 @@ Goal: correctly understand both validated Smart View layouts with zero business 
 Implement:
 
 - shared header normalization;
-- Previsao adapter for its exact 13-field contract;
-- Relacao adapter for its exact 15-field contract;
+- Previsao adapter for its exact 13-field contract (v2 - see `references/input-contracts.md`), including the mandatory Vencimento duplicate-header block;
+- Relacao adapter for its exact 12-field contract (v2 - down from 15 in v1; `Tipo de Registro`, `Data do Pgto da Comissao`, and `Comissao gerada pela B/E` are optional, read and used when present but never required);
 - Brazilian decimal/date parsing;
 - wrong-mode detection;
 - missing-header diagnostics;
+- ambiguous-header diagnostics (duplicate required header blocks import with an explanatory error);
 - seller/branch identity extraction;
 - document grouping by branch code + seller code;
 - total only from the designated Protheus commission field;

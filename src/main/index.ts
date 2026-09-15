@@ -12,6 +12,12 @@ import { registerHistoryHandlers } from './ipc/historyHandlers';
 import { registerImportHandlers, startImportWatchers, stopImportWatchers } from './ipc/importHandlers';
 import { seedDefaultCompanyProfiles } from './companies/seedCompanyProfiles';
 import { getReportRoot } from './storage/settingsRepository';
+import {
+  migrateLegacyAppData,
+  migrateLegacyReportRootAndPaths,
+  remapStoredLogoPaths,
+  resolveLegacyUserDataPath
+} from './migration/migrateLegacyNaming';
 
 const paths = resolveAppDataPaths();
 app.setPath('userData', paths.userDataPath);
@@ -57,10 +63,19 @@ function createMainWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  migrateLegacyAppData(paths, (message, meta) => console.warn(message, meta));
+
   initLogger(paths.logDir);
   log('info', 'app ready', { appDataPath: paths.userDataPath, databasePath: paths.databasePath });
 
   const db = openDatabase(paths.databasePath);
+  remapStoredLogoPaths(db, resolveLegacyUserDataPath(paths), paths.userDataPath);
+
+  const reportRootMigration = migrateLegacyReportRootAndPaths(db, (message, meta) => log('warn', message, meta));
+  if (reportRootMigration.didMigrateRootFolder || reportRootMigration.didMigrateModeFolders) {
+    log('info', 'legacy report root naming migrated', { ...reportRootMigration });
+  }
+
   seedDefaultCompanyProfiles(db, resolveBrandLogosDir(), join(paths.userDataPath, 'logos'));
 
   registerSettingsHandlers({

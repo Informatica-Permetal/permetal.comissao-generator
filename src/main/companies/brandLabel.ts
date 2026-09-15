@@ -13,7 +13,7 @@ const LABEL_BY_TOKEN: Record<string, string> = {
   PERMETAL: 'Permetal',
   METALGRADE: 'Metalgrade',
   MG_ZINC: 'MG Zinc',
-  'TRES-S': 'Tres-S'
+  'TRES-S': 'Três-S'
 };
 
 export function resolveBrandLabel(logoPath: string | null): string | null {

@@ -5,7 +5,7 @@ export class MissingHeadersError extends Error {
   readonly missingHeaders: string[];
 
   constructor(mode: ReportMode, missingHeaders: string[]) {
-    super(`Colunas obrigatorias ausentes para o modo ${mode}: ${missingHeaders.join(', ')}`);
+    super(`Colunas obrigatórias ausentes para o modo ${mode}: ${missingHeaders.join(', ')}`);
     this.name = 'MissingHeadersError';
     this.mode = mode;
     this.missingHeaders = missingHeaders;
@@ -26,7 +26,7 @@ export class AmbiguousHeaderError extends Error {
 
   constructor(mode: ReportMode, header: string, occurrences: number) {
     super(
-      `A coluna "${header}" aparece ${occurrences} vezes no arquivo. No Smart View, deixe selecionado apenas o segundo campo "${header}" (o que aparece mais abaixo na lista de colunas) e gere o relatorio novamente.`
+      `A coluna "${header}" aparece ${occurrences} vezes no arquivo. No Smart View, deixe selecionado apenas o segundo campo "${header}" (o que aparece mais abaixo na lista de colunas) e gere o relatório novamente.`
     );
     this.name = 'AmbiguousHeaderError';
     this.mode = mode;

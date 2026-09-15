@@ -2,10 +2,11 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { MODE_SUBFOLDERS, REPORT_MODES } from '@shared/constants/folders';
 import type { FolderPermissionResult } from '@shared/types/settings';
+import { resolveModeSubfolderPath } from './folderNames';
 
 export function buildFolderTree(root: string): string[] {
   return REPORT_MODES.flatMap((mode) =>
-    MODE_SUBFOLDERS.map((subfolder) => join(root, mode, subfolder))
+    MODE_SUBFOLDERS.map((subfolder) => resolveModeSubfolderPath(root, mode, subfolder))
   );
 }
 
@@ -33,11 +34,11 @@ function describePermissionError(error: unknown): string {
   switch (code) {
     case 'EACCES':
     case 'EPERM':
-      return 'Sem permissao para criar, gravar ou excluir arquivos nesta pasta.';
+      return 'Sem permissão para criar, gravar ou excluir arquivos nesta pasta.';
     case 'ENOSPC':
-      return 'Espaco em disco insuficiente nesta pasta.';
+      return 'Espaço em disco insuficiente nesta pasta.';
     case 'EROFS':
-      return 'Esta pasta esta em um volume somente leitura.';
+      return 'Esta pasta está em um volume somente leitura.';
     default:
       return error instanceof Error ? error.message : 'Falha desconhecida ao testar a pasta.';
   }

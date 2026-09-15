@@ -5,6 +5,7 @@ import type { HistoryDocument, HistoryFilters } from '@shared/types/history';
 import PageHeader from '../components/PageHeader';
 import { useToast } from '../components/ToastProvider';
 import { useConfirmDialog } from '../components/ConfirmDialogProvider';
+import { modeDisplayLabel } from '../lib/modeLabel';
 
 interface HistoricoPageProps {
   onBack: () => void;
@@ -85,7 +86,7 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
       setDocuments(result);
       setLoadError(null);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Falha ao carregar o historico.');
+      setLoadError(error instanceof Error ? error.message : 'Falha ao carregar o histórico.');
     }
   }
 
@@ -109,14 +110,14 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
   async function handleDeleteDocument(document: HistoryDocument): Promise<void> {
     const confirmed = await confirm({
       title: 'Excluir documento',
-      message: `Excluir o PDF de ${document.sellerName} (${document.branchCode})? O arquivo sera enviado para a lixeira.`,
+      message: `Excluir o PDF de ${document.sellerName} (${document.branchCode})? O arquivo será enviado para a lixeira.`,
       confirmLabel: 'Excluir'
     });
     if (!confirmed) return;
     setBusyKey(`doc-${document.id}`);
     try {
       const result = await window.api.history.deleteDocument(document.id);
-      showToast(result.ok ? 'success' : 'error', result.ok ? 'Documento excluido.' : (result.error ?? 'Falha ao excluir o documento.'));
+      showToast(result.ok ? 'success' : 'error', result.ok ? 'Documento excluído.' : (result.error ?? 'Falha ao excluir o documento.'));
       await reload();
     } finally {
       setBusyKey(null);
@@ -146,14 +147,14 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
   async function handleDeleteBatch(group: BatchGroup): Promise<void> {
     const confirmed = await confirm({
       title: 'Excluir lote',
-      message: `Excluir o lote inteiro "${group.sourceOriginalName}"? Isso envia ${group.documents.length} PDF(s) e o arquivo de origem arquivado para a lixeira. Esta acao nao pode ser desfeita pelo aplicativo.`,
+      message: `Excluir o lote inteiro "${group.sourceOriginalName}"? Isso envia ${group.documents.length} PDF(s) e o arquivo de origem arquivado para a lixeira. Esta ação não pode ser desfeita pelo aplicativo.`,
       confirmLabel: 'Excluir lote'
     });
     if (!confirmed) return;
     setBusyKey(`batch-${group.batchId}`);
     try {
       const result = await window.api.history.deleteBatch(group.batchId);
-      showToast(result.ok ? 'success' : 'error', result.ok ? 'Lote excluido.' : (result.error ?? 'Falha ao excluir o lote.'));
+      showToast(result.ok ? 'success' : 'error', result.ok ? 'Lote excluído.' : (result.error ?? 'Falha ao excluir o lote.'));
       await reload();
     } finally {
       setBusyKey(null);
@@ -184,15 +185,15 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
 
   return (
     <section>
-      <PageHeader icon={History} title="Historico" onBack={onBack} />
+      <PageHeader icon={History} title="Histórico" onBack={onBack} />
 
       <div className="card historico-toolbar">
         <div className="field">
           <label htmlFor="hist-mode">Modo</label>
           <select id="hist-mode" value={filters.mode} onChange={(e) => updateFilter('mode', e.target.value as ReportMode | '')}>
             <option value="">Todos</option>
-            <option value="Previsao">Previsao</option>
-            <option value="Relacao">Relacao</option>
+            <option value="Previsao">Previsão</option>
+            <option value="Relacao">Relação</option>
           </select>
         </div>
         <div className="field field--search">
@@ -212,7 +213,7 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
           <input id="hist-from" type="date" value={filters.dateFrom} onChange={(e) => updateFilter('dateFrom', e.target.value)} />
         </div>
         <div className="field">
-          <label htmlFor="hist-to">Ate</label>
+          <label htmlFor="hist-to">Até</label>
           <input id="hist-to" type="date" value={filters.dateTo} onChange={(e) => updateFilter('dateTo', e.target.value)} />
         </div>
         <button type="button" className="btn btn--ghost btn--sm" onClick={() => setFilters(EMPTY_FILTERS)}>
@@ -233,7 +234,7 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
         <div className="card empty-state">
           <Inbox size={28} />
           <p className="empty-state__title">Nenhum documento encontrado</p>
-          <p className="empty-state__hint">Ajuste os filtros ou gere novos documentos a partir de Previsao ou Relacao.</p>
+          <p className="empty-state__hint">Ajuste os filtros ou gere novos documentos a partir de Previsão ou Relação.</p>
         </div>
       )}
 
@@ -243,7 +244,7 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
             <div className="batch-card__title">
               <FileText size={16} />
               {group.sourceOriginalName}
-              <span className="badge">{group.mode}</span>
+              <span className="badge">{modeDisplayLabel(group.mode)}</span>
             </div>
             <div className="batch-card__actions">
               <button
@@ -274,7 +275,7 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
                   <th>Linhas</th>
                   <th className="num">Total</th>
                   <th>Gerado em</th>
-                  <th>Acoes</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -317,7 +318,7 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
                             </button>
                           </>
                         ) : (
-                          <span className="unavailable-tag">PDF indisponivel</span>
+                          <span className="unavailable-tag">PDF indisponível</span>
                         )}
                         <button
                           type="button"

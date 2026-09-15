@@ -35,7 +35,7 @@ export function registerPdfHandlers(deps: PdfHandlerDeps): void {
     async (_event, preview: BatchPreview): Promise<GenerateReportResult> => {
       const reportRoot = getReportRoot(db);
       if (!reportRoot) {
-        throw new Error('Pasta raiz de relatorios ainda nao configurada.');
+        throw new Error('Pasta raiz de relatórios ainda não configurada.');
       }
 
       const lookupCompanyProfile = (branchCode: string) => getCompanyProfile(db, branchCode);

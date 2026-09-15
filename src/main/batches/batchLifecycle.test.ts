@@ -8,6 +8,8 @@ import { getBatchById } from '../storage/batchRepository';
 import { listDocumentsByBatch } from '../storage/documentRepository';
 import { createFixtureDir, removeFixtureDir, writeFixtureWorkbook } from '../reports/testSupport/xlsxFixtures';
 import { resolveGeradosDir } from '../pdf/outputPath';
+import { resolveEntradaDir } from '../app/folderNames';
+import { resolveProcessamentoDir } from './archivePaths';
 import { runBatchGeneration, type RunBatchGenerationDeps } from './batchLifecycle';
 
 const FAKE_PDF_BUFFER = Buffer.from('%PDF-1.7 fake');
@@ -85,7 +87,7 @@ function makeDeps(renderPdf: RunBatchGenerationDeps['renderPdf']): RunBatchGener
 
 /** Places a workspace copy exactly where importFile() would have left it, without re-running Fase 3 import. */
 function seedWorkspaceCopy(mode: 'Previsao', batchId: string, filePath: string): string {
-  const workspaceDir = join(reportRoot, mode, 'Processamento', batchId);
+  const workspaceDir = resolveProcessamentoDir(reportRoot, mode, batchId);
   mkdirSync(workspaceDir, { recursive: true });
   const workspacePath = join(workspaceDir, 'previsao.xlsx');
   writeFileSync(workspacePath, readFileSync(filePath));
@@ -124,12 +126,12 @@ describe('runBatchGeneration - caminho feliz', () => {
     expect(readFileSync(sourcePath)).toEqual(originalBytes);
 
     // Processamento workspace cleaned up after success
-    expect(existsSync(join(reportRoot, 'Previsao', 'Processamento', 'batch-1'))).toBe(false);
+    expect(existsSync(resolveProcessamentoDir(reportRoot, 'Previsao', 'batch-1'))).toBe(false);
   });
 
   it('remove o original da Entrada somente apos o arquivamento ter sucesso, e nunca toca fontes externas', async () => {
     const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
-    const entradaDir = join(reportRoot, 'Previsao', 'Entrada');
+    const entradaDir = resolveEntradaDir(reportRoot, 'Previsao');
     mkdirSync(entradaDir, { recursive: true });
     const sourcePath = await writeFixtureWorkbook(entradaDir, 'previsao.xlsx', PREVISAO_HEADERS, [previsaoRow()]);
     const workspaceFilePath = seedWorkspaceCopy('Previsao', 'batch-entrada', sourcePath);
@@ -175,7 +177,7 @@ describe('runBatchGeneration - caminho feliz', () => {
 
     const firstDocs = listDocumentsByBatch(db, 'batch-a');
     expect(firstDocs).toHaveLength(1);
-    expect(firstDocs[0].pdfPath).toContain(join('Previsao', 'Historico'));
+    expect(firstDocs[0].pdfPath).toContain(join('Previsão', 'Histórico'));
     expect(existsSync(firstDocs[0].pdfPath)).toBe(true);
 
     // both batches remain recorded - nothing was deleted, only relocated
@@ -266,7 +268,7 @@ describe('runBatchGeneration - falha durante a geracao', () => {
 
   it('preserva o original da Entrada quando a geracao falha - so e removido apos sucesso', async () => {
     const renderPdf = vi.fn().mockRejectedValue(new Error('falha simulada no renderizador'));
-    const entradaDir = join(reportRoot, 'Previsao', 'Entrada');
+    const entradaDir = resolveEntradaDir(reportRoot, 'Previsao');
     mkdirSync(entradaDir, { recursive: true });
     const sourcePath = await writeFixtureWorkbook(entradaDir, 'previsao.xlsx', PREVISAO_HEADERS, [previsaoRow()]);
     const workspaceFilePath = seedWorkspaceCopy('Previsao', 'batch-fail-entrada', sourcePath);

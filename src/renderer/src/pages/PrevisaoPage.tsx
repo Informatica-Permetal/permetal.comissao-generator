@@ -10,5 +10,5 @@ interface PrevisaoPageProps {
 }
 
 export default function PrevisaoPage(props: PrevisaoPageProps) {
-  return <ImportPage mode="Previsao" title="Previsao de Comissoes" {...props} />;
+  return <ImportPage mode="Previsao" title="Previsão de Comissões" {...props} />;
 }

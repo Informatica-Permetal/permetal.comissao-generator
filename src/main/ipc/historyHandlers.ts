@@ -37,7 +37,7 @@ export function registerHistoryHandlers(deps: HistoryHandlerDeps): void {
 
   ipcMain.handle(IPC_CHANNELS.historyRegenerateDocument, (_event, documentId: string): Promise<RegenerateResult> => {
     const reportRoot = getReportRoot(db);
-    if (!reportRoot) return Promise.resolve({ ok: false, error: 'Pasta raiz de relatorios ainda nao configurada.' });
+    if (!reportRoot) return Promise.resolve({ ok: false, error: 'Pasta raiz de relatórios ainda não configurada.' });
     return regenerateDocument(documentId, {
       db,
       reportRoot,
@@ -48,7 +48,7 @@ export function registerHistoryHandlers(deps: HistoryHandlerDeps): void {
 
   ipcMain.handle(IPC_CHANNELS.historyRegenerateBatch, (_event, batchId: string): Promise<RegenerateResult> => {
     const reportRoot = getReportRoot(db);
-    if (!reportRoot) return Promise.resolve({ ok: false, error: 'Pasta raiz de relatorios ainda nao configurada.' });
+    if (!reportRoot) return Promise.resolve({ ok: false, error: 'Pasta raiz de relatórios ainda não configurada.' });
     return regenerateBatch(batchId, {
       db,
       reportRoot,

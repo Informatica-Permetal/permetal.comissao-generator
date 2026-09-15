@@ -5,11 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildFolderTree, createFolderTree, testFolderPermissions } from './reportRoot';
 
 describe('buildFolderTree', () => {
-  it('lists all 10 Previsao/Relacao subfolders', () => {
+  it('lists all 10 Previsao/Relacao subfolders using their accented physical names', () => {
     const tree = buildFolderTree('C:\\Raiz');
     expect(tree).toHaveLength(10);
-    expect(tree).toContain(join('C:\\Raiz', 'Previsao', 'Entrada'));
-    expect(tree).toContain(join('C:\\Raiz', 'Relacao', 'Historico'));
+    expect(tree).toContain(join('C:\\Raiz', 'Previsão', 'Entrada'));
+    expect(tree).toContain(join('C:\\Raiz', 'Relação', 'Histórico'));
   });
 });
 
@@ -41,12 +41,12 @@ describe('testFolderPermissions and createFolderTree', () => {
 
   it('is idempotent: running twice does not remove existing files', () => {
     createFolderTree(rootWithSpaces);
-    const markerFile = join(rootWithSpaces, 'Previsao', 'Entrada', 'nao-remover.txt');
+    const markerFile = join(rootWithSpaces, 'Previsão', 'Entrada', 'nao-remover.txt');
     writeFileSync(markerFile, 'dado do usuario');
 
     createFolderTree(rootWithSpaces);
 
     expect(existsSync(markerFile)).toBe(true);
-    expect(readdirSync(join(rootWithSpaces, 'Previsao', 'Entrada'))).toContain('nao-remover.txt');
+    expect(readdirSync(join(rootWithSpaces, 'Previsão', 'Entrada'))).toContain('nao-remover.txt');
   });
 });

@@ -12,12 +12,12 @@ interface SeedProfile {
 
 /**
  * Every branch code actually observed in the validated Previsao/Relacao
- * exports. Tres-S has no known branch code yet (none observed so far), so it
+ * exports. Três-S has no known branch code yet (none observed so far), so it
  * is not seeded here - its logo stays available for a profile the user
- * creates by hand once a Tres-S branch shows up in a real import.
+ * creates by hand once a Três-S branch shows up in a real import.
  */
 const SEED_PROFILES: readonly SeedProfile[] = [
-  { branchCode: '0103', displayName: 'PERMETAL SAO PAULO', brand: 'PERMETAL' },
+  { branchCode: '0103', displayName: 'PERMETAL SÃO PAULO', brand: 'PERMETAL' },
   { branchCode: '0104', displayName: 'PERMETAL CRAVINHOS', brand: 'PERMETAL' },
   { branchCode: '0105', displayName: 'METALGRADE NOVA', brand: 'METALGRADE' },
   { branchCode: '0106', displayName: 'MG', brand: 'MG_ZINC' }

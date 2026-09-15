@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReportMode } from '@shared/constants/folders';
+import { resolveModeSubfolderPath } from '../app/folderNames';
 
 const ILLEGAL_FILENAME_CHARS = /[\\/:*?"<>|]/g;
 const WHITESPACE_PATTERN = /\s+/g;
@@ -30,7 +31,7 @@ export function buildPdfFileName(
 }
 
 export function resolveGeradosDir(reportRoot: string, mode: ReportMode): string {
-  return join(reportRoot, mode, 'Gerados');
+  return resolveModeSubfolderPath(reportRoot, mode, 'Gerados');
 }
 
 /** Never overwrites an existing file; appends a numeric suffix when the name collides. */

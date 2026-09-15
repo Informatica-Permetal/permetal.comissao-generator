@@ -35,7 +35,7 @@ export async function regenerateBatch(batchId: string, deps: RegenerateDeps): Pr
   // still handled correctly (as "not found"), never as a crash or a lost/duplicated write.
   const initialBatch = getBatchById(deps.db, batchId);
   if (!initialBatch) {
-    return { ok: false, error: 'Lote nao encontrado.' };
+    return { ok: false, error: 'Lote não encontrado.' };
   }
   // Serialized per mode: must never interleave with a generation, another regeneration, or a
   // deletion of this same batch for the same mode - all of them evacuate/write Gerados or
@@ -48,10 +48,10 @@ async function regenerateBatchLocked(batchId: string, deps: RegenerateDeps): Pro
 
   const batch = getBatchById(db, batchId);
   if (!batch) {
-    return { ok: false, error: 'Lote nao encontrado.' };
+    return { ok: false, error: 'Lote não encontrado.' };
   }
   if (!batch.sourceArchivedPath || !existsSync(batch.sourceArchivedPath)) {
-    return { ok: false, error: 'Arquivo de origem arquivado nao foi encontrado. Nao e possivel regenerar.' };
+    return { ok: false, error: 'Arquivo de origem arquivado não foi encontrado. Não é possível regenerar.' };
   }
 
   try {
@@ -90,7 +90,7 @@ async function regenerateBatchLocked(batchId: string, deps: RegenerateDeps): Pro
 export async function regenerateDocument(documentId: string, deps: RegenerateDeps): Promise<RegenerateResult> {
   const document = getDocumentById(deps.db, documentId);
   if (!document) {
-    return { ok: false, error: 'Documento nao encontrado.' };
+    return { ok: false, error: 'Documento não encontrado.' };
   }
   return regenerateBatch(document.batchId, deps);
 }

@@ -1,5 +1,4 @@
 import { ipcMain, shell, type BrowserWindow } from 'electron';
-import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { IPC_CHANNELS } from '@shared/contracts/ipc';
 import type { ImportResult, SourceKind } from '@shared/types/import';
@@ -8,6 +7,7 @@ import { getCompanyProfile } from '../companies/companyProfileRepository';
 import { getReportRoot } from '../storage/settingsRepository';
 import { importFile } from '../import/importService';
 import { startEntradaWatchers, type EntradaWatcherHandle } from '../import/entradaWatcher';
+import { resolveEntradaDir } from '../app/folderNames';
 import { log } from '../app/logger';
 
 export interface ImportHandlerDeps {
@@ -20,7 +20,7 @@ export function registerImportHandlers(deps: ImportHandlerDeps): void {
   ipcMain.handle(IPC_CHANNELS.reportsOpenEntradaFolder, async (_event, mode: ReportMode) => {
     const reportRoot = getReportRoot(db);
     if (!reportRoot) return;
-    await shell.openPath(join(reportRoot, mode, 'Entrada'));
+    await shell.openPath(resolveEntradaDir(reportRoot, mode));
   });
 
   ipcMain.handle(
@@ -30,7 +30,7 @@ export function registerImportHandlers(deps: ImportHandlerDeps): void {
       if (!reportRoot) {
         return {
           ok: false,
-          error: { kind: 'unreadable', message: 'Pasta raiz de relatorios ainda nao configurada.' }
+          error: { kind: 'unreadable', message: 'Pasta raiz de relatórios ainda não configurada.' }
         };
       }
       return importFile(

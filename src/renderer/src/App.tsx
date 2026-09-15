@@ -38,7 +38,7 @@ export default function App() {
       <main className="app-shell app-shell--error">
         <AlertTriangle size={32} color="#c0342a" />
         <h1>{APP_NAME}</h1>
-        <p>Nao foi possivel iniciar o aplicativo: {loadError}</p>
+        <p>Não foi possível iniciar o aplicativo: {loadError}</p>
       </main>
     );
   }

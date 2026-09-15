@@ -105,7 +105,7 @@ export function parsePrevisaoWorksheet(sheet: ExcelJS.Worksheet): PrevisaoParseR
 
     if (classificacao !== '' && !isKnownClassification(classificacao)) {
       warnings.push(
-        `Linha ${rowNumber}: classificacao "${classificacao}" nao reconhecida - preservada em secao propria.`
+        `Linha ${rowNumber}: classificação "${classificacao}" não reconhecida - preservada em seção própria.`
       );
     }
 

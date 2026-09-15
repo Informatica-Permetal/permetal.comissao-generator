@@ -1,1 +1,1 @@
-export const APP_NAME = 'Formatador Comissao';
+export const APP_NAME = 'Formatador Comissão';

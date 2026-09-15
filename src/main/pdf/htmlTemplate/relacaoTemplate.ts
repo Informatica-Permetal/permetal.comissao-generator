@@ -18,12 +18,12 @@ interface ColumnDefinition {
 
 const COLUMNS: readonly ColumnDefinition[] = [
   { key: 'pedido', label: 'Pedido', width: '11%' },
-  { key: 'titulo', label: 'Titulo', width: '16%' },
+  { key: 'titulo', label: 'Título', width: '16%' },
   { key: 'cliente', label: 'Cliente', width: '29%' },
   { key: 'dataDaBaixa', label: 'Data da Baixa', width: '11%' },
-  { key: 'baseDaComissao', label: 'Base da Comissao', width: '14%', numeric: true },
-  { key: 'percentComissao', label: '% Comissao', width: '9%', numeric: true },
-  { key: 'valorDaComissao', label: 'Valor da Comissao', width: '15%', numeric: true }
+  { key: 'baseDaComissao', label: 'Base da Comissão', width: '14%', numeric: true },
+  { key: 'percentComissao', label: '% Comissão', width: '9%', numeric: true },
+  { key: 'valorDaComissao', label: 'Valor da Comissão', width: '15%', numeric: true }
 ];
 
 export function buildRelacaoHtmlDocument(vm: RelacaoPdfViewModel, generatedAtLabel: string): string {
@@ -47,12 +47,12 @@ export function buildRelacaoHtmlDocument(vm: RelacaoPdfViewModel, generatedAtLab
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <title>Relacao de Comissoes</title>
+    <title>Relação de Comissões</title>
     <style>${BASE_CSS}</style>
   </head>
   <body>
     ${buildDocumentHeaderHtml(vm.company)}
-    ${buildTitleHtml('Relacao de Comissoes', 'Comissoes para conferencia e pagamento')}
+    ${buildTitleHtml('Relação de Comissões', 'Comissões para conferência e pagamento')}
     ${buildDocumentMetaHtml(vm.identity, generatedAtLabel)}
     <table>
       <colgroup>
@@ -67,7 +67,7 @@ export function buildRelacaoHtmlDocument(vm: RelacaoPdfViewModel, generatedAtLab
         ${rowsHtml}
       </tbody>
     </table>
-    ${buildTotalBlockHtml('Total da Comissao', vm.total)}
+    ${buildTotalBlockHtml('Total da Comissão', vm.total)}
     ${buildSignatureBlockHtml()}
   </body>
 </html>`;

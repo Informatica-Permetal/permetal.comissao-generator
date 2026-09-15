@@ -3,7 +3,7 @@ import { extname } from 'node:path';
 
 export class UnsupportedFileTypeError extends Error {
   constructor(filePath: string) {
-    super(`Apenas arquivos .xlsx sao aceitos: "${filePath}"`);
+    super(`Apenas arquivos .xlsx são aceitos: "${filePath}"`);
     this.name = 'UnsupportedFileTypeError';
   }
 }
@@ -20,7 +20,7 @@ export async function loadWorkbookFromFile(filePath: string): Promise<ExcelJS.Wo
 export function getFirstWorksheet(workbook: ExcelJS.Workbook): ExcelJS.Worksheet {
   const sheet = workbook.worksheets[0];
   if (!sheet) {
-    throw new Error('A planilha nao contem nenhuma aba.');
+    throw new Error('A planilha não contém nenhuma aba.');
   }
   return sheet;
 }

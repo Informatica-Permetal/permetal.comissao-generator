@@ -1,6 +1,7 @@
 import { watch, type FSWatcher } from 'chokidar';
-import { basename, extname, join } from 'node:path';
+import { basename, extname } from 'node:path';
 import { REPORT_MODES, type ReportMode } from '@shared/constants/folders';
+import { resolveEntradaDir } from '../app/folderNames';
 
 export interface EntradaWatcherHandle {
   close: () => Promise<void>;
@@ -28,7 +29,7 @@ export function startEntradaWatchers(
   onFileDetected: (mode: ReportMode, filePath: string) => void
 ): EntradaWatcherHandle {
   const watchers: FSWatcher[] = REPORT_MODES.map((mode) => {
-    const entradaDir = join(reportRoot, mode, 'Entrada');
+    const entradaDir = resolveEntradaDir(reportRoot, mode);
     const watcher = watch(entradaDir, {
       ignoreInitial: false,
       depth: 0,

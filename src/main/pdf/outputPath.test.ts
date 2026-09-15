@@ -18,8 +18,8 @@ describe('buildPdfFileName', () => {
 });
 
 describe('resolveGeradosDir', () => {
-  it('aponta para <raiz>/<modo>/Gerados', () => {
-    expect(resolveGeradosDir('C:\\Raiz', 'Previsao')).toBe(join('C:\\Raiz', 'Previsao', 'Gerados'));
+  it('aponta para <raiz>/<nome fisico do modo>/Gerados', () => {
+    expect(resolveGeradosDir('C:\\Raiz', 'Previsao')).toBe(join('C:\\Raiz', 'Previsão', 'Gerados'));
   });
 });
 

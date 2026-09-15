@@ -168,10 +168,10 @@ function CompanyCard({
 
       <div className="company-card__body">
         <div className="company-card__group">
-          <div className="company-card__group-title">Identificacao</div>
+          <div className="company-card__group-title">Identificação</div>
           <div className="company-card__fields">
             <div className="field">
-              <label htmlFor={`${id}-displayName`}>Nome de exibicao</label>
+              <label htmlFor={`${id}-displayName`}>Nome de exibição</label>
               <input
                 id={`${id}-displayName`}
                 value={fields.displayName}
@@ -179,12 +179,12 @@ function CompanyCard({
               />
             </div>
             <div className="field">
-              <label htmlFor={`${id}-legalName`}>Razao social</label>
+              <label htmlFor={`${id}-legalName`}>Razão social</label>
               <input
                 id={`${id}-legalName`}
                 value={fields.legalName}
                 onChange={(e) => update('legalName', e.target.value)}
-                placeholder="Nao informado"
+                placeholder="Não informado"
               />
             </div>
             <div className="field">
@@ -193,7 +193,7 @@ function CompanyCard({
                 id={`${id}-tradeName`}
                 value={fields.tradeName}
                 onChange={(e) => update('tradeName', e.target.value)}
-                placeholder="Nao informado"
+                placeholder="Não informado"
               />
             </div>
             <div className="field">
@@ -202,22 +202,22 @@ function CompanyCard({
                 id={`${id}-cnpj`}
                 value={fields.cnpj}
                 onChange={(e) => update('cnpj', e.target.value)}
-                placeholder="Nao informado"
+                placeholder="Não informado"
               />
             </div>
           </div>
         </div>
 
         <div className="company-card__group">
-          <div className="company-card__group-title">Endereco</div>
+          <div className="company-card__group-title">Endereço</div>
           <div className="company-card__fields company-card__fields--address">
             <div className="field">
-              <label htmlFor={`${id}-endereco`}>Endereco</label>
+              <label htmlFor={`${id}-endereco`}>Endereço</label>
               <input
                 id={`${id}-endereco`}
                 value={fields.endereco}
                 onChange={(e) => update('endereco', e.target.value)}
-                placeholder="Nao informado"
+                placeholder="Não informado"
               />
             </div>
             <div className="field">
@@ -226,7 +226,7 @@ function CompanyCard({
                 id={`${id}-cidade`}
                 value={fields.cidade}
                 onChange={(e) => update('cidade', e.target.value)}
-                placeholder="Nao informado"
+                placeholder="Não informado"
               />
             </div>
             <div className="field">
@@ -245,7 +245,7 @@ function CompanyCard({
 
       <div className="form-actions">
         <button type="button" className="btn btn--primary btn--sm" onClick={() => void handleSaveClick()} disabled={saving}>
-          <Save size={14} /> {saving ? 'Salvando...' : 'Salvar alteracoes'}
+          <Save size={14} /> {saving ? 'Salvando...' : 'Salvar alterações'}
         </button>
       </div>
     </article>
@@ -266,7 +266,7 @@ function AddBranchCard({
 
   async function handleAdd(): Promise<void> {
     if (!branchCode.trim() || !displayName.trim()) {
-      showToast('error', 'Informe o codigo e o nome da filial.');
+      showToast('error', 'Informe o código e o nome da filial.');
       return;
     }
     setSaving(true);
@@ -284,16 +284,16 @@ function AddBranchCard({
       <div className="company-card__group-title">Nova filial</div>
       <div className="add-branch-card__form">
         <div className="field field--grow">
-          <label htmlFor="new-branch-code">Codigo da filial</label>
+          <label htmlFor="new-branch-code">Código da filial</label>
           <input id="new-branch-code" value={branchCode} onChange={(e) => setBranchCode(e.target.value)} placeholder="ex: 0107" />
         </div>
         <div className="field field--grow">
-          <label htmlFor="new-branch-name">Nome de exibicao</label>
+          <label htmlFor="new-branch-name">Nome de exibição</label>
           <input
             id="new-branch-name"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="ex: Tres-S"
+            placeholder="ex: Três-S"
           />
         </div>
         <button type="button" className="btn btn--primary btn--sm" onClick={() => void handleAdd()} disabled={saving}>

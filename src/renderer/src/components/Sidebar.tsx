@@ -10,15 +10,15 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: { key: Exclude<SidebarView, 'configuracoes'>; label: string; icon: typeof LayoutGrid }[] = [
-  { key: 'home', label: 'Inicio', icon: LayoutGrid },
-  { key: 'previsao', label: 'Previsao', icon: FileSpreadsheet },
-  { key: 'relacao', label: 'Relacao', icon: FileStack },
-  { key: 'historico', label: 'Historico', icon: History }
+  { key: 'home', label: 'Início', icon: LayoutGrid },
+  { key: 'previsao', label: 'Previsão', icon: FileSpreadsheet },
+  { key: 'relacao', label: 'Relação', icon: FileStack },
+  { key: 'historico', label: 'Histórico', icon: History }
 ];
 
 export default function Sidebar({ view, onNavigate, appVersion }: SidebarProps) {
   return (
-    <nav className="sidebar" aria-label="Navegacao principal">
+    <nav className="sidebar" aria-label="Navegação principal">
       <div className="sidebar__brand">
         <span className="sidebar__brand-mark">
           <FileSpreadsheet size={16} />
@@ -49,10 +49,10 @@ export default function Sidebar({ view, onNavigate, appVersion }: SidebarProps) 
           onClick={() => onNavigate('configuracoes')}
         >
           <Settings size={17} />
-          Configuracoes
+          Configurações
         </button>
       </div>
-      {appVersion && <div className="sidebar__footer">Versao {appVersion}</div>}
+      {appVersion && <div className="sidebar__footer">Versão {appVersion}</div>}
     </nav>
   );
 }

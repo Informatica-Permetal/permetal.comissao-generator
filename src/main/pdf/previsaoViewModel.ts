@@ -5,7 +5,7 @@ import { toPdfCompanyInfo } from './companyInfo';
 import { formatCurrencyBRL, formatDateBR } from './format';
 import type { PrevisaoPdfRow, PrevisaoPdfSection, PrevisaoPdfViewModel } from './types';
 
-const UNCLASSIFIED_LABEL = '(sem classificacao)';
+const UNCLASSIFIED_LABEL = '(sem classificação)';
 
 export function buildPrevisaoViewModel(
   group: DocumentGroup<PrevisaoParsedRow>,

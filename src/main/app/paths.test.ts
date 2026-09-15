@@ -13,17 +13,17 @@ describe('resolveAppDataPaths', () => {
     process.env.LOCALAPPDATA = originalLocalAppData;
   });
 
-  it('places all internal data under %LOCALAPPDATA%\\Formatador Comissao', () => {
+  it('places all internal data under %LOCALAPPDATA%\\Formatador Comissão', () => {
     const paths = resolveAppDataPaths();
-    expect(paths.userDataPath).toBe(join('C:\\Users\\Maria Da Silva\\AppData\\Local', 'Formatador Comissao'));
+    expect(paths.userDataPath).toBe(join('C:\\Users\\Maria Da Silva\\AppData\\Local', 'Formatador Comissão'));
     expect(paths.logDir).toBe(join(paths.userDataPath, 'logs'));
-    expect(paths.databasePath).toBe(join(paths.userDataPath, 'Formatador Comissao.db'));
+    expect(paths.databasePath).toBe(join(paths.userDataPath, 'Formatador Comissão.db'));
   });
 });
 
 describe('resolveSuggestedReportRoot', () => {
-  it('suggests <Documents>/Formatador Comissao', () => {
+  it('suggests <Documents>/Formatador Comissão', () => {
     const documents = 'C:\\Users\\Maria Da Silva\\Documents';
-    expect(resolveSuggestedReportRoot(documents)).toBe(join(documents, 'Formatador Comissao'));
+    expect(resolveSuggestedReportRoot(documents)).toBe(join(documents, 'Formatador Comissão'));
   });
 });

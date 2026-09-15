@@ -30,7 +30,7 @@ export function registerSettingsHandlers(deps: SettingsHandlerDeps): void {
   ipcMain.handle(IPC_CHANNELS.settingsChooseFolder, async (_event, currentPath?: string) => {
     const window = getWindow();
     const options: Electron.OpenDialogOptions = {
-      title: 'Escolher pasta raiz de relatorios',
+      title: 'Escolher pasta raiz de relatórios',
       defaultPath: currentPath && currentPath.length > 0 ? currentPath : undefined,
       properties: ['openDirectory', 'createDirectory']
     };

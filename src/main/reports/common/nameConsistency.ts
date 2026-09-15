@@ -15,7 +15,7 @@ export function warnIfNameInconsistent(
     knownNameByCode.set(key, name);
   } else if (existing !== name) {
     warnings.push(
-      `Linha ${rowNumber}: nome "${name}" diverge do nome "${existing}" ja visto para o mesmo codigo neste arquivo.`
+      `Linha ${rowNumber}: nome "${name}" diverge do nome "${existing}" já visto para o mesmo código neste arquivo.`
     );
   }
 }

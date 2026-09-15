@@ -33,7 +33,7 @@ describe('seedDefaultCompanyProfiles', () => {
     const metalgrade = getCompanyProfile(db, '0105');
     const mg = getCompanyProfile(db, '0106');
 
-    expect(permetalSp?.displayName).toBe('PERMETAL SAO PAULO');
+    expect(permetalSp?.displayName).toBe('PERMETAL SÃO PAULO');
     expect(permetalCravinhos?.displayName).toBe('PERMETAL CRAVINHOS');
     expect(metalgrade?.displayName).toBe('METALGRADE NOVA');
     expect(mg?.displayName).toBe('MG');

@@ -1,9 +1,9 @@
 {
   "name": "formatador-comissao",
-  "productName": "Formatador Comissao",
+  "productName": "Formatador Comissão",
   "version": "1.1.0",
   "private": true,
-  "description": "Formatador Comissao - formata em PDF as exportacoes de comissao do TOTVS Protheus Smart View",
+  "description": "Formatador Comissão - formata em PDF as exportações de comissão do TOTVS Protheus Smart View",
   "author": "Permetal",
   "main": "./out/main/index.js",
   "scripts": {
@@ -48,7 +48,7 @@
   },
   "build": {
     "appId": "com.formatadorcomissao.app",
-    "productName": "Formatador Comissao",
+    "productName": "Formatador Comissão",
     "copyright": "Copyright (C) 2026",
     "directories": {
       "output": "release",
@@ -87,7 +87,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Formatador Comissao",
+      "shortcutName": "Formatador Comissão",
       "deleteAppDataOnUninstall": false,
       "artifactName": "${productName}-Setup-${version}.${ext}"
     }

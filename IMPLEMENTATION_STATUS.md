@@ -957,3 +957,82 @@ Documentada tambem a opcao futura (nao implementada, requer aprovacao explicita)
 - Nenhuma mudanca de UI/PDF foi feita, conforme instruido explicitamente ("sem mexer ainda no visual final").
 
 **PARADO conforme instruido.**
+
+## Revisão completa de pt-BR, paths visíveis, migração e sidebar fixa (CONCLUÍDA)
+
+Fase de correção ortográfica sistemática (acentuação pt-BR em todo texto visível), renomeação da estrutura física de pastas para nomes acentuados, migração segura de instalações existentes, e correção do layout da sidebar para ficar fixa.
+
+### Nome visível
+
+`APP_NAME` (`src/shared/constants/app.ts`) passa de `'Formatador Comissao'` para **`'Formatador Comissão'`** - usado para título da janela, marca na sidebar, nome sugerido da pasta de relatórios e nome da pasta de dados internos. `productName` e `shortcutName` em `package.json` (instalador NSIS, atalho, nome do `.exe`) tambem atualizados. `appId` (`com.formatadorcomissao.app`), `name` do npm (`formatador-comissao`), os valores internos `ReportMode` (`'Previsao'`/`'Relacao'`) e `ModeSubfolder`, canais IPC e chaves de banco **permanecem ASCII**, conforme instruído.
+
+### Pastas físicas visíveis - nova estrutura com acentos
+
+Nova camada de mapeamento em `src/main/app/folderNames.ts` traduz as chaves internas (ASCII) para o nome físico exibido no Explorer, sem tocar em nenhum tipo/enum/coluna de banco:
+
+- `MODE_FOLDER_NAME`: `Previsao` -> `Previsão`, `Relacao` -> `Relação` (chave interna inalterada).
+- `SUBFOLDER_FOLDER_NAME`: apenas `Historico` -> `Histórico` muda; `Entrada`/`Processamento`/`Processados`/`Gerados` já não tinham acento.
+
+Todos os pontos que antes montavam o caminho manualmente (`archivePaths.ts`, `outputPath.ts`, `entradaWatcher.ts`, `importHandlers.ts`, `batchLifecycle.ts`, `importService.ts`, `reportRoot.ts`) foram migrados para usar `resolveModeSubfolderPath`/`resolveEntradaDir`, eliminando toda duplicação de literais de pasta.
+
+Nova estrutura para uma instalação nova:
+```
+Documentos\Formatador Comissão\Previsão\{Entrada,Processamento,Processados,Gerados,Histórico}
+Documentos\Formatador Comissão\Relação\{Entrada,Processamento,Processados,Gerados,Histórico}
+%LOCALAPPDATA%\Formatador Comissão\{Formatador Comissão.db,logs,logos}
+```
+
+### Migração segura de instalações existentes
+
+Novo módulo `src/main/migration/` (`folderNames.ts` fica em `app/`, mas a lógica de migração vive aqui):
+
+- `migrateFolderSafely.ts` - utilitário genérico de mover-ou-mesclar um arquivo/pasta legado para o novo local: renomeia em um passo quando o destino não existe (mover uma árvore inteira é atômico no mesmo volume); quando o destino já existe, mescla item a item **nunca sobrescrevendo** um nome colidente (mantém o lado novo, preserva o legado intacto, registra aviso); remove diretórios legados que ficam vazios; deixa em paz qualquer conflito não resolvido. Idempotente: uma segunda execução é sempre segura.
+- `remapLegacyPath.ts` - funções puras que recalculam um caminho absoluto persistido: `remapPathPrefix` (troca de prefixo simples, usada para `logo_path`) e `remapLegacyReportPath` (troca o segmento do modo e do subdiretório `Historico`, preservando todo o resto do caminho - `Processados`, `Gerados`, `Entrada`, ano/mês/batchId/nome de arquivo). Nunca toca um caminho que não vive sob a raiz sendo migrada (ex.: arquivo fonte externo).
+- `migrateLegacyNaming.ts` - orquestração: `migrateLegacyAppData` (pasta interna do app, roda ANTES de abrir o banco), `remapStoredLogoPaths` (corrige `company_profiles.logo_path` após mover a pasta), `migrateLegacyReportRootAndPaths` (renomeia a própria pasta raiz **somente se** seu nome for exatamente o padrão legado `Formatador Comissao`; sempre renomeia `Previsao`/`Relacao`/`Historico` internos; reescreve `batches.source_archived_path` e `documents.pdf_path`).
+
+Chamada em `src/main/index.ts`, incondicional e idempotente a cada início do app - nenhuma flag de "já migrado" é necessária, pois cada passo é um no-op natural quando não há mais nada legado. Uma raiz de relatórios customizada (nome escolhido pelo usuário, diferente do padrão sugerido) tem apenas suas subpastas internas renomeadas; o nome da pasta raiz em si nunca é alterado sem necessidade.
+
+Regras seguidas à risca: nunca sobrescrever arquivo existente; colisão vira aviso, nunca perda; paths persistidos atualizados; watchers/configurações continuam funcionando (usam o `reportRoot` já atualizado); regeneração testada e funcionando; migração idempotente; nenhuma falha no meio do processo pode corromper dados (cada movimentação é isolada e o pior caso é um arquivo/pasta deixado no lugar legado, nunca apagado).
+
+### Validação real da migração (não só testes automatizados)
+
+Além de 35 testes automatizados novos (`migrateFolderSafely.test.ts`, `remapLegacyPath.test.ts`, `migrateLegacyNaming.test.ts` - rename limpo, mesclagem com colisão, idempotência, nunca sobrescreve, raiz customizada vs. padrão, reescrita de `source_archived_path`/`pdf_path`/`logo_path`), foi feita uma **validação real em cópia de dados**: uma instalação legada completa foi construída em disco (pasta `%LOCALAPPDATA%\Formatador Comissao\` real com banco SQLite real via `openDatabase`, `logs/`, `logos/` com um PNG real, e uma raiz de relatórios legada real com PDF/XLSX reais referenciados no banco) e o **app real** (`npx electron out/main/index.js`) foi executado apontando para essa cópia:
+
+| Verificação | Resultado |
+|---|---|
+| 1ª execução - pasta interna do app | Migrada de `Formatador Comissao\` para `Formatador Comissão\`, incluindo o `.db` renomeado |
+| 1ª execução - pasta raiz de relatórios | Renomeada de `...\Formatador Comissao` para `...\Formatador Comissão`; `Previsao`->`Previsão`, `Relacao`->`Relação` |
+| 1ª execução - `settings.reportRoot` no banco | Atualizado para o novo caminho |
+| 1ª execução - `batches.source_archived_path` | Reescrito para o novo caminho (`Previsão\Processados\...`) |
+| 1ª execução - `documents.pdf_path` (Previsao e Relacao) | Reescritos para os novos caminhos (`Previsão\Gerados\...`, `Relação\Gerados\...`) |
+| 1ª execução - `company_profiles.logo_path` | Reescrito para a nova pasta de logos |
+| 2ª execução (idempotência) | Nenhum aviso, nenhuma mudança, nenhum erro - migração já concluída detectada corretamente como no-op |
+
+Inspecionado diretamente via consulta SQL na base migrada e via `find` no sistema de arquivos - não apenas assumido a partir dos testes unitários.
+
+### Textos visíveis corrigidos (pt-BR)
+
+Revisão sistemática de sidebar, Home, importação/preview, histórico, configurações, modais, toasts, tooltips, mensagens de erro (main e renderer), PDFs (título, cabeçalho, tabela, total, assinatura, cabeçalho/rodapé de impressão) e `index.html`. Novo helper `src/renderer/src/lib/modeLabel.ts` (`modeDisplayLabel`) para exibir "Previsão"/"Relação" (acentuado) em qualquer lugar que antes mostrava a chave interna ASCII diretamente (badge do histórico, mensagem de modo errado, meta de documento recente). `brandLabel.ts`: rótulo da Três-S corrigido. Seed de filiais: "PERMETAL SAO PAULO" -> "PERMETAL SÃO PAULO" (só afeta instalações novas; perfil já existente é dado do usuário e não é sobrescrito). Não foi possível corrigir "Galvanização" (aparece apenas dentro da imagem do logo `METALGRADE.png`, não é texto de código).
+
+### Sidebar fixa
+
+`src/renderer/src/App.css`: `.app-shell` mudou de `min-height: 100vh` (permitia a página inteira crescer e rolar, arrastando a sidebar para fora da tela em listas longas) para **`height: 100vh; overflow: hidden`** - agora a sidebar (Início/Previsão/Relação/Histórico sempre visíveis, Configurações + versão sempre fixos no rodapé via `.sidebar__spacer{flex:1}` já existente) nunca sai da tela; somente `.app-main` rola (`overflow-y: auto`, já existente). `.app-shell--centered`/`.app-shell--error` (telas sem sidebar, ex. primeiro uso) ganharam `overflow-y: auto` próprio para não cortar conteúdo em janelas baixas.
+
+Validado visualmente com captura de tela real: lista de Histórico com 25 documentos, rolada até o fim, com a sidebar completamente fixa (nav + Configurações + versão) tanto em 1440x900 quanto em janela pequena (1000x640).
+
+### Testes técnicos
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK |
+| `npm run lint` | OK - 0 erros, 2 avisos pré-existentes inalterados |
+| `npm run test` | OK - **159/159** testes (35 novos de migração + 124 anteriores) |
+| `npm run build` | OK |
+
+### Pendências / observações
+
+- "Galvanização" não pôde ser corrigido por não ser texto de código (está dentro da imagem `METALGRADE.png`).
+- Perfis de filial já seedados em instalações existentes mantêm "PERMETAL SAO PAULO" sem acento (é dado editável do usuário; a migração desta fase corrige apenas nomes de pasta/caminho, nunca conteúdo de cadastro que o usuário pode ter customizado).
+- `npm run dist` (instalador) não foi regenerado nesta fase; recomenda-se gerar um novo instalador antes do próximo release para embutir o novo `productName`/`shortcutName` acentuados.
+
+**PARADO conforme instruído.**

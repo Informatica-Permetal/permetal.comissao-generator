@@ -3,6 +3,7 @@ import { FileSpreadsheet, FileStack, History, FolderOpen, Database, FileText, In
 import type { AppState } from '@shared/types/settings';
 import type { HistoryDocument } from '@shared/types/history';
 import type { SidebarView } from '../components/Sidebar';
+import { modeDisplayLabel } from '../lib/modeLabel';
 
 interface HomePageProps {
   onNavigate: (destination: SidebarView) => void;
@@ -12,20 +13,20 @@ interface HomePageProps {
 const CARDS: { key: 'previsao' | 'relacao' | 'historico'; title: string; description: string; icon: typeof FileSpreadsheet }[] = [
   {
     key: 'previsao',
-    title: 'Previsao de Comissoes',
-    description: 'Formata em PDF o relatorio Protheus de previsao de comissoes, dividido por vendedor e filial.',
+    title: 'Previsão de Comissões',
+    description: 'Formata em PDF o relatório Protheus de previsão de comissões, dividido por vendedor e filial.',
     icon: FileSpreadsheet
   },
   {
     key: 'relacao',
-    title: 'Relacao de Comissoes',
-    description: 'Formata em PDF o relatorio Protheus de relacao de comissoes, dividido por vendedor e filial.',
+    title: 'Relação de Comissões',
+    description: 'Formata em PDF o relatório Protheus de relação de comissões, dividido por vendedor e filial.',
     icon: FileStack
   },
   {
     key: 'historico',
-    title: 'Historico',
-    description: 'Consulta, reimprime e gerencia os documentos ja gerados anteriormente.',
+    title: 'Histórico',
+    description: 'Consulta, reimprime e gerencia os documentos já gerados anteriormente.',
     icon: History
   }
 ];
@@ -47,7 +48,7 @@ export default function HomePage({ onNavigate, appState }: HomePageProps) {
       <div className="home-hero">
         <div className="home-hero__title">Bem-vindo</div>
         <p className="home-hero__subtitle">
-          Escolha um relatorio do Protheus para formatar, ou consulte os documentos ja gerados.
+          Escolha um relatório do Protheus para formatar, ou consulte os documentos já gerados.
         </p>
       </div>
 
@@ -77,7 +78,7 @@ export default function HomePage({ onNavigate, appState }: HomePageProps) {
               <Inbox size={28} />
               <p className="empty-state__title">Nenhum documento gerado ainda</p>
               <p className="empty-state__hint">
-                Importe uma Previsao ou Relacao de Comissoes para comecar.
+                Importe uma Previsão ou Relação de Comissões para começar.
               </p>
             </div>
           )}
@@ -91,7 +92,7 @@ export default function HomePage({ onNavigate, appState }: HomePageProps) {
                       {doc.sellerName} ({doc.sellerCode}) - {doc.branchCode}
                     </div>
                     <div className="recent-item__meta">
-                      {doc.mode} - {new Date(doc.generatedAt).toLocaleString('pt-BR')}
+                      {modeDisplayLabel(doc.mode)} - {new Date(doc.generatedAt).toLocaleString('pt-BR')}
                     </div>
                   </div>
                   {doc.pdfAvailable && (
@@ -114,7 +115,7 @@ export default function HomePage({ onNavigate, appState }: HomePageProps) {
           <div className="section-title">Status operacional</div>
           <div className="status-row">
             <span className="status-row__label">
-              <FolderOpen size={15} /> Pasta de relatorios
+              <FolderOpen size={15} /> Pasta de relatórios
             </span>
             <span className="status-row__value">{appState.reportRoot ?? '-'}</span>
           </div>

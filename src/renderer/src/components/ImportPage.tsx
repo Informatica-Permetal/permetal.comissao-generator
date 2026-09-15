@@ -19,6 +19,7 @@ import type { BatchPreview, ImportServiceError, SourceKind } from '@shared/types
 import type { GenerateReportResult } from '@shared/types/pdf';
 import PageHeader from './PageHeader';
 import { useToast } from './ToastProvider';
+import { modeDisplayLabel } from '../lib/modeLabel';
 
 interface ImportPageProps {
   mode: ReportMode;
@@ -152,7 +153,7 @@ export default function ImportPage({
             <span className="dropzone__icon">
               <Upload size={24} />
             </span>
-            <p className="dropzone__title">Arraste seu relatorio aqui</p>
+            <p className="dropzone__title">Arraste seu relatório aqui</p>
             <p className="section-hint" style={{ margin: 0 }}>
               Aceita arquivos .xlsx exportados do Protheus Smart View
             </p>
@@ -165,7 +166,7 @@ export default function ImportPage({
               </button>
             </div>
             <p className="dropzone__hint">
-              <FolderOutput size={13} /> A pasta de Entrada deste modo esta sendo monitorada automaticamente
+              <FolderOutput size={13} /> A pasta de Entrada deste modo está sendo monitorada automaticamente
             </p>
           </div>
 
@@ -227,9 +228,10 @@ function ImportErrorMessage({
         <div className="message-banner message-banner--warning">
           <AlertTriangle size={16} />
           <span>
-            Este arquivo parece ser de <strong>{error.detectedMode}</strong>, nao de {error.expectedMode}.{' '}
+            Este arquivo parece ser de <strong>{modeDisplayLabel(error.detectedMode)}</strong>, não de{' '}
+            {modeDisplayLabel(error.expectedMode)}.{' '}
             <button type="button" className="btn btn--sm" onClick={() => onSwitchMode(error.detectedMode, sourcePath)}>
-              Processar como {error.detectedMode}
+              Processar como {modeDisplayLabel(error.detectedMode)}
             </button>
           </span>
         </div>
@@ -238,7 +240,7 @@ function ImportErrorMessage({
       return (
         <div className="message-banner message-banner--error">
           <AlertCircle size={16} />
-          Colunas obrigatorias ausentes: {error.missingHeaders.join(', ')}
+          Colunas obrigatórias ausentes: {error.missingHeaders.join(', ')}
         </div>
       );
     case 'ambiguousHeader':
@@ -302,7 +304,7 @@ function PreviewSummary({
       {preview.previouslyProcessedAt && (
         <div className="message-banner message-banner--warning">
           <AlertTriangle size={16} />
-          Este arquivo ja foi processado em {new Date(preview.previouslyProcessedAt).toLocaleString('pt-BR')}. Deseja processar novamente?
+          Este arquivo já foi processado em {new Date(preview.previouslyProcessedAt).toLocaleString('pt-BR')}. Deseja processar novamente?
         </div>
       )}
 
@@ -323,7 +325,7 @@ function PreviewSummary({
           <span>
             Configure a(s) filial(is) antes de gerar: {preview.missingBranchCodes.join(', ')}{' '}
             <button type="button" className="btn btn--sm" onClick={onGoToSettings}>
-              <SettingsIcon size={14} /> Ir para Configuracoes
+              <SettingsIcon size={14} /> Ir para Configurações
             </button>
           </span>
         </div>
@@ -334,7 +336,7 @@ function PreviewSummary({
           <thead>
             <tr>
               <th>Filial</th>
-              <th>Codigo</th>
+              <th>Código</th>
               <th>Vendedor</th>
               <th>Linhas</th>
               <th className="num">Total</th>
@@ -389,7 +391,7 @@ function GeneratedResults({
               <th>Vendedor</th>
               <th>Linhas</th>
               <th className="num">Total</th>
-              <th>Acoes</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>

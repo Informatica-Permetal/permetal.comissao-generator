@@ -87,7 +87,7 @@ async function seedCompletedBatch(batchId: string, sellerCode = '000009'): Promi
   const sourcePath = await writeFixtureWorkbook(sourceDir, `${batchId}.xlsx`, PREVISAO_HEADERS, [
     previsaoRow({ 'Dados do vendedor': `${sellerCode} - VENDEDOR SINTETICO` })
   ]);
-  const workspaceDir = join(reportRoot, 'Previsao', 'Processamento', batchId);
+  const workspaceDir = join(reportRoot, 'Previsão', 'Processamento', batchId);
   mkdirSync(workspaceDir, { recursive: true });
   const workspaceFilePath = join(workspaceDir, 'previsao.xlsx');
   writeFileSync(workspaceFilePath, readFileSync(sourcePath));
@@ -104,7 +104,7 @@ async function seedCompletedBatchWithTwoDocuments(batchId: string): Promise<void
     previsaoRow({ 'Dados do vendedor': '000009 - VENDEDOR UM' }),
     previsaoRow({ 'Dados do vendedor': '000010 - VENDEDOR DOIS' })
   ]);
-  const workspaceDir = join(reportRoot, 'Previsao', 'Processamento', batchId);
+  const workspaceDir = join(reportRoot, 'Previsão', 'Processamento', batchId);
   mkdirSync(workspaceDir, { recursive: true });
   const workspaceFilePath = join(workspaceDir, 'previsao.xlsx');
   writeFileSync(workspaceFilePath, readFileSync(sourcePath));
@@ -144,7 +144,7 @@ describe('deleteDocument', () => {
 
   it('retorna erro estruturado para documento inexistente, sem lancar excecao', async () => {
     const result = await deleteDocument('nao-existe', { db, trashItem: fakeTrash([]) });
-    expect(result).toEqual({ ok: false, error: 'Documento nao encontrado.' });
+    expect(result).toEqual({ ok: false, error: 'Documento não encontrado.' });
   });
 
   it('em um lote com varios documentos, excluir um deles preserva o PDF e o registro do outro', async () => {
@@ -194,6 +194,6 @@ describe('deleteBatch', () => {
 
   it('retorna erro estruturado para lote inexistente, sem lancar excecao', async () => {
     const result = await deleteBatch('nao-existe', { db, trashItem: fakeTrash([]) });
-    expect(result).toEqual({ ok: false, error: 'Lote nao encontrado.' });
+    expect(result).toEqual({ ok: false, error: 'Lote não encontrado.' });
   });
 });

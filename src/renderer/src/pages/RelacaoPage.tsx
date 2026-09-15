@@ -10,5 +10,5 @@ interface RelacaoPageProps {
 }
 
 export default function RelacaoPage(props: RelacaoPageProps) {
-  return <ImportPage mode="Relacao" title="Relacao de Comissoes" {...props} />;
+  return <ImportPage mode="Relacao" title="Relação de Comissões" {...props} />;
 }

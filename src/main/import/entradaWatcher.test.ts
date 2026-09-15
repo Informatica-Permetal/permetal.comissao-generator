@@ -23,8 +23,8 @@ function waitForDetections(count: number, timeoutMs = 4000): Promise<void> {
 
 beforeEach(() => {
   reportRoot = mkdtempSync(join(tmpdir(), 'fc-watcher-'));
-  mkdirSync(join(reportRoot, 'Previsao', 'Entrada'), { recursive: true });
-  mkdirSync(join(reportRoot, 'Relacao', 'Entrada'), { recursive: true });
+  mkdirSync(join(reportRoot, 'Previsão', 'Entrada'), { recursive: true });
+  mkdirSync(join(reportRoot, 'Relação', 'Entrada'), { recursive: true });
   detections = [];
 });
 
@@ -39,7 +39,7 @@ describe('startEntradaWatchers', () => {
     handle = startEntradaWatchers(reportRoot, (mode, filePath) => detections.push({ mode, filePath }));
     await new Promise((r) => setTimeout(r, 300)); // deixa o watcher terminar o scan inicial
 
-    const target = join(reportRoot, 'Previsao', 'Entrada', 'previsao.xlsx');
+    const target = join(reportRoot, 'Previsão', 'Entrada', 'previsao.xlsx');
     writeFileSync(target, 'conteudo sintetico, nao e um xlsx real');
 
     await waitForDetections(1);
@@ -52,8 +52,8 @@ describe('startEntradaWatchers', () => {
     handle = startEntradaWatchers(reportRoot, (mode, filePath) => detections.push({ mode, filePath }));
     await new Promise((r) => setTimeout(r, 300));
 
-    writeFileSync(join(reportRoot, 'Previsao', 'Entrada', 'a.xlsx'), 'x');
-    writeFileSync(join(reportRoot, 'Relacao', 'Entrada', 'b.xlsx'), 'x');
+    writeFileSync(join(reportRoot, 'Previsão', 'Entrada', 'a.xlsx'), 'x');
+    writeFileSync(join(reportRoot, 'Relação', 'Entrada', 'b.xlsx'), 'x');
 
     await waitForDetections(2);
     const modes = detections.map((d) => d.mode).sort();
@@ -64,9 +64,9 @@ describe('startEntradaWatchers', () => {
     handle = startEntradaWatchers(reportRoot, (mode, filePath) => detections.push({ mode, filePath }));
     await new Promise((r) => setTimeout(r, 300));
 
-    writeFileSync(join(reportRoot, 'Previsao', 'Entrada', '~$previsao.xlsx'), 'lock file do excel');
-    writeFileSync(join(reportRoot, 'Previsao', 'Entrada', 'notas.txt'), 'nao e planilha');
-    const realFile = join(reportRoot, 'Previsao', 'Entrada', 'real.xlsx');
+    writeFileSync(join(reportRoot, 'Previsão', 'Entrada', '~$previsao.xlsx'), 'lock file do excel');
+    writeFileSync(join(reportRoot, 'Previsão', 'Entrada', 'notas.txt'), 'nao e planilha');
+    const realFile = join(reportRoot, 'Previsão', 'Entrada', 'real.xlsx');
     writeFileSync(realFile, 'x');
 
     await waitForDetections(1);

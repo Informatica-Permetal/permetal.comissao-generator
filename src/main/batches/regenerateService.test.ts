@@ -81,7 +81,7 @@ afterEach(() => {
 
 async function seedCompletedBatch(batchId: string): Promise<void> {
   const sourcePath = await writeFixtureWorkbook(sourceDir, `${batchId}.xlsx`, PREVISAO_HEADERS, [previsaoRow()]);
-  const workspaceDir = join(reportRoot, 'Previsao', 'Processamento', batchId);
+  const workspaceDir = join(reportRoot, 'Previsão', 'Processamento', batchId);
   mkdirSync(workspaceDir, { recursive: true });
   const workspaceFilePath = join(workspaceDir, 'previsao.xlsx');
   writeFileSync(workspaceFilePath, readFileSync(sourcePath));
@@ -124,7 +124,7 @@ describe('regenerateBatch', () => {
 
     const oldDoc = after.find((d) => d.id === before[0].id)!;
     expect(existsSync(oldDoc.pdfPath)).toBe(true);
-    expect(oldDoc.pdfPath).toContain(join('Previsao', 'Historico'));
+    expect(oldDoc.pdfPath).toContain(join('Previsão', 'Histórico'));
 
     expect(getBatchById(db, 'batch-regen-1')?.status).toBe('completed');
   });
@@ -145,7 +145,7 @@ describe('regenerateBatch', () => {
 
   it('retorna erro estruturado para lote inexistente', async () => {
     const result = await regenerateBatch('nao-existe', regenDeps(vi.fn()));
-    expect(result).toEqual({ ok: false, error: 'Lote nao encontrado.' });
+    expect(result).toEqual({ ok: false, error: 'Lote não encontrado.' });
   });
 });
 
@@ -229,6 +229,6 @@ describe('regenerateDocument', () => {
 
   it('retorna erro estruturado para documento inexistente', async () => {
     const result = await regenerateDocument('nao-existe', regenDeps(vi.fn()));
-    expect(result).toEqual({ ok: false, error: 'Documento nao encontrado.' });
+    expect(result).toEqual({ ok: false, error: 'Documento não encontrado.' });
   });
 });

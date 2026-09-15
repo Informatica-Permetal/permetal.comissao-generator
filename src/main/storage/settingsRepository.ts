@@ -30,3 +30,8 @@ export function persistFirstRunCompletion(db: DatabaseSync, reportRoot: string):
   setSettingValue(db, SETTINGS_KEYS.reportRoot, reportRoot);
   setSettingValue(db, SETTINGS_KEYS.firstRunCompletedAt, new Date().toISOString());
 }
+
+/** Updates only the report root path, e.g. after a legacy-naming migration renames its folder. Never touches first-run status. */
+export function updateReportRoot(db: DatabaseSync, reportRoot: string): void {
+  setSettingValue(db, SETTINGS_KEYS.reportRoot, reportRoot);
+}

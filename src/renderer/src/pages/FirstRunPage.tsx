@@ -41,7 +41,7 @@ export default function FirstRunPage({ initialState, onCompleted }: FirstRunPage
     const result = await window.api.settings.completeFirstRun(path);
     setSubmitting(false);
     if (!result.ok) {
-      setSubmitError(result.error ?? 'Falha ao concluir a configuracao inicial.');
+      setSubmitError(result.error ?? 'Falha ao concluir a configuração inicial.');
       return;
     }
     const refreshed = await window.api.settings.getState();
@@ -54,9 +54,9 @@ export default function FirstRunPage({ initialState, onCompleted }: FirstRunPage
         <FolderCog size={26} />
       </span>
       <div className="card first-run__card">
-        <h1>Configuracao inicial</h1>
+        <h1>Configuração inicial</h1>
         <p>
-          Bem-vindo ao {APP_NAME}. Escolha onde os relatorios importados e os PDFs gerados serao guardados.
+          Bem-vindo ao {APP_NAME}. Escolha onde os relatórios importados e os PDFs gerados serão guardados.
         </p>
         <p className="first-run__path">
           <FolderOpen size={16} />
@@ -72,13 +72,13 @@ export default function FirstRunPage({ initialState, onCompleted }: FirstRunPage
             onClick={() => void handleConfirm()}
             disabled={testing || submitting || permission?.ok !== true}
           >
-            {submitting ? 'Criando pastas...' : 'Concluir configuracao inicial'}
+            {submitting ? 'Criando pastas...' : 'Concluir configuração inicial'}
           </button>
         </div>
         {testing && (
           <div className="first-run__status">
             <span className="spinner" />
-            Testando permissao de criar, gravar e excluir...
+            Testando permissão de criar, gravar e excluir...
           </div>
         )}
         {permission && !permission.ok && (
@@ -90,7 +90,7 @@ export default function FirstRunPage({ initialState, onCompleted }: FirstRunPage
         {permission?.ok && (
           <div className="first-run__status first-run__ok">
             <CheckCircle2 size={15} />
-            Permissao verificada: criar, gravar e excluir OK.
+            Permissão verificada: criar, gravar e excluir OK.
           </div>
         )}
         {submitError && (

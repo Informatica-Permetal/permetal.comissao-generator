@@ -68,15 +68,15 @@ export function buildDocumentMetaHtml(identity: PdfDocumentIdentity, generatedAt
       <div class="doc-meta__item">
         <p class="doc-meta__label">Vendedor</p>
         <p class="doc-meta__value">${escapeHtml(identity.sellerName || '-')}</p>
-        <p class="doc-meta__sub">Codigo ${escapeHtml(identity.sellerCode)}</p>
+        <p class="doc-meta__sub">Código ${escapeHtml(identity.sellerCode)}</p>
       </div>
       <div class="doc-meta__item">
         <p class="doc-meta__label">Filial</p>
         <p class="doc-meta__value">${escapeHtml(identity.branchName || '-')}</p>
-        <p class="doc-meta__sub">Codigo ${escapeHtml(identity.branchCode)}</p>
+        <p class="doc-meta__sub">Código ${escapeHtml(identity.branchCode)}</p>
       </div>
       <div class="doc-meta__item">
-        <p class="doc-meta__label">Data de Geracao</p>
+        <p class="doc-meta__label">Data de Geração</p>
         <p class="doc-meta__value">${escapeHtml(generatedAtLabel)}</p>
       </div>
     </section>
@@ -98,11 +98,11 @@ export function buildSignatureBlockHtml(): string {
   return `
     <section class="signature">
       <p class="signature__declaration">
-        Declaro que conferi e estou ciente das informacoes e dos valores apresentados neste relatorio.
+        Declaro que conferi e estou ciente das informações e dos valores apresentados neste relatório.
       </p>
       <div class="signature__row">
         <div class="signature__line">Assinatura do Vendedor</div>
-        <div class="signature__line">Assinatura do Responsavel</div>
+        <div class="signature__line">Assinatura do Responsável</div>
         <div class="signature__date">Data: ____/____/________</div>
       </div>
     </section>
@@ -135,8 +135,8 @@ export function buildPrintFooterTemplate(): string {
   return `
     <div style="font-size:7px; width:100%; padding:3px 24px 0; display:flex; justify-content:space-between;
                 color:#9a9a9a; font-family:Arial,sans-serif; border-top:0.5px solid #d8d8d8;">
-      <span>Documento interno para conferencia</span>
-      <span>Pagina <span class="pageNumber"></span> de <span class="totalPages"></span></span>
+      <span>Documento interno para conferência</span>
+      <span>Página <span class="pageNumber"></span> de <span class="totalPages"></span></span>
     </div>
   `;
 }

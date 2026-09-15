@@ -1,5 +1,5 @@
 import { existsSync, rmSync, statSync, unlinkSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { CompanyProfile } from '@shared/types/companyProfile';
@@ -26,6 +26,7 @@ import { insertDocument } from '../storage/documentRepository';
 import { archiveSourceFile } from './archiveSource';
 import { evacuateGeradosToHistorico } from './evacuateGerados';
 import { resolveProcessamentoDir } from './archivePaths';
+import { resolveEntradaDir } from '../app/folderNames';
 import { withModeLock } from './modeLock';
 import { log } from '../app/logger';
 
@@ -208,7 +209,7 @@ function removeEntradaOriginalIfApplicable(
   if (sourceKind !== 'entrada') return;
   if (sourcePath === workspaceFilePath) return;
 
-  const entradaDir = join(reportRoot, mode, 'Entrada');
+  const entradaDir = resolveEntradaDir(reportRoot, mode);
   if (!sourcePath.startsWith(entradaDir)) return; // defensive: only ever touch files truly inside Entrada
   if (!existsSync(sourcePath)) return;
 

@@ -11,7 +11,7 @@ interface SettingsPageProps {
 export default function SettingsPage({ state, onBack }: SettingsPageProps) {
   return (
     <section>
-      <PageHeader icon={SettingsIcon} title="Configuracoes" onBack={onBack} />
+      <PageHeader icon={SettingsIcon} title="Configurações" onBack={onBack} />
 
       <div className="settings-page__info">
         <div className="card info-card">
@@ -19,7 +19,7 @@ export default function SettingsPage({ state, onBack }: SettingsPageProps) {
             <FolderOpen size={17} />
           </span>
           <div>
-            <div className="info-card__label">Pasta raiz de relatorios</div>
+            <div className="info-card__label">Pasta raiz de relatórios</div>
             <div className="info-card__value">{state.reportRoot ?? '-'}</div>
           </div>
         </div>
@@ -55,7 +55,7 @@ export default function SettingsPage({ state, onBack }: SettingsPageProps) {
             <Tag size={17} />
           </span>
           <div>
-            <div className="info-card__label">Versao</div>
+            <div className="info-card__label">Versão</div>
             <div className="info-card__value">{state.appVersion}</div>
           </div>
         </div>
@@ -64,7 +64,7 @@ export default function SettingsPage({ state, onBack }: SettingsPageProps) {
       <div className="section-title">Empresas / Filiais</div>
       <p className="section-hint">
         Cada filial pode reutilizar a mesma logo de outra filial da mesma empresa. Campos vazios ficam em branco no
-        PDF - nada e inventado automaticamente.
+        PDF - nada é inventado automaticamente.
       </p>
       <CompanyProfilesSection />
     </section>

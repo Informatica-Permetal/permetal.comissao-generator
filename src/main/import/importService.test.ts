@@ -136,7 +136,7 @@ describe('importFile - caminho feliz', () => {
     expect(result.preview.previouslyProcessedAt).toBeNull();
 
     // workspace copy exists under Processamento, distinct from the external original
-    expect(result.preview.workspaceFilePath).toContain(join('Previsao', 'Processamento'));
+    expect(result.preview.workspaceFilePath).toContain(join('Previsão', 'Processamento'));
     expect(existsSync(result.preview.workspaceFilePath)).toBe(true);
     expect(result.preview.workspaceFilePath).not.toBe(sourcePath);
 

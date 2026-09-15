@@ -10,6 +10,7 @@ import { AmbiguousHeaderError, MissingHeadersError, WrongModeError } from '../re
 import { parsePrevisaoFile } from '../reports/previsao/parser';
 import { parseRelacaoFile } from '../reports/relacao/parser';
 import { findLatestBatchBySourceHash } from '../storage/batchRepository';
+import { resolveProcessamentoDir } from '../batches/archivePaths';
 import { computeFileHashSync } from './computeFileHash';
 
 export interface ImportServiceDeps {
@@ -35,19 +36,19 @@ export async function importFile(request: ImportRequest, deps: ImportServiceDeps
   if (fileName.startsWith('~$')) {
     return {
       ok: false,
-      error: { kind: 'temporaryFile', message: `Arquivo temporario do Excel ignorado: ${fileName}` }
+      error: { kind: 'temporaryFile', message: `Arquivo temporário do Excel ignorado: ${fileName}` }
     };
   }
   if (extname(fileName).toLowerCase() !== '.xlsx') {
     return {
       ok: false,
-      error: { kind: 'unsupportedFileType', message: `Apenas arquivos .xlsx sao aceitos: ${fileName}` }
+      error: { kind: 'unsupportedFileType', message: `Apenas arquivos .xlsx são aceitos: ${fileName}` }
     };
   }
   if (activeImportPaths.has(request.sourcePath)) {
     return {
       ok: false,
-      error: { kind: 'alreadyProcessing', message: `Este arquivo ja esta sendo processado: ${fileName}` }
+      error: { kind: 'alreadyProcessing', message: `Este arquivo já está sendo processado: ${fileName}` }
     };
   }
 
@@ -64,7 +65,7 @@ async function runImport(request: ImportRequest, deps: ImportServiceDeps, fileNa
   const { db, reportRoot, lookupCompanyProfile } = deps;
 
   const batchId = randomUUID();
-  const workspaceDir = join(reportRoot, mode, 'Processamento', batchId);
+  const workspaceDir = resolveProcessamentoDir(reportRoot, mode, batchId);
   mkdirSync(workspaceDir, { recursive: true });
   const workspaceFilePath = join(workspaceDir, fileName);
   copyFileSync(sourcePath, workspaceFilePath);

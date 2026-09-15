@@ -93,7 +93,7 @@ export function generatePrevisaoPdfs(
   return generateGroupPdfs(
     parseResult.groups,
     'Previsao',
-    'Previsao de Comissoes',
+    'Previsão de Comissões',
     buildPrevisaoViewModel,
     buildPrevisaoHtmlDocument,
     deps
@@ -107,7 +107,7 @@ export function generateRelacaoPdfs(
   return generateGroupPdfs(
     parseResult.groups,
     'Relacao',
-    'Relacao de Comissoes',
+    'Relação de Comissões',
     buildRelacaoViewModel,
     buildRelacaoHtmlDocument,
     deps

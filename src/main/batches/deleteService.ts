@@ -35,7 +35,7 @@ function cleanupEmptyDirsUpward(dir: string): void {
 export async function deleteDocument(documentId: string, deps: DeleteDeps): Promise<DeleteResult> {
   const initialDocument = getDocumentById(deps.db, documentId);
   if (!initialDocument) {
-    return { ok: false, error: 'Documento nao encontrado.' };
+    return { ok: false, error: 'Documento não encontrado.' };
   }
   // Serialized per mode: must never interleave with a generation/regeneration for this
   // document's mode (which could be evacuating or re-publishing the very file being trashed).
@@ -45,7 +45,7 @@ export async function deleteDocument(documentId: string, deps: DeleteDeps): Prom
 async function deleteDocumentLocked(documentId: string, deps: DeleteDeps): Promise<DeleteResult> {
   const document = getDocumentById(deps.db, documentId);
   if (!document) {
-    return { ok: false, error: 'Documento nao encontrado.' };
+    return { ok: false, error: 'Documento não encontrado.' };
   }
 
   if (document.pdfAvailable) {
@@ -73,7 +73,7 @@ async function deleteDocumentLocked(documentId: string, deps: DeleteDeps): Promi
 export async function deleteBatch(batchId: string, deps: DeleteDeps): Promise<DeleteResult> {
   const initialBatch = getBatchById(deps.db, batchId);
   if (!initialBatch) {
-    return { ok: false, error: 'Lote nao encontrado.' };
+    return { ok: false, error: 'Lote não encontrado.' };
   }
   // Serialized per mode: must never interleave with a generation/regeneration for this same
   // mode (which could be mid-regeneration of the very batch this call is about to remove).
@@ -83,7 +83,7 @@ export async function deleteBatch(batchId: string, deps: DeleteDeps): Promise<De
 async function deleteBatchLocked(batchId: string, deps: DeleteDeps): Promise<DeleteResult> {
   const batch = getBatchById(deps.db, batchId);
   if (!batch) {
-    return { ok: false, error: 'Lote nao encontrado.' };
+    return { ok: false, error: 'Lote não encontrado.' };
   }
 
   const documents = listDocumentsByBatch(deps.db, batchId);

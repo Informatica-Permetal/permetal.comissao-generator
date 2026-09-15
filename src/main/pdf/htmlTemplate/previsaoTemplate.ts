@@ -19,11 +19,11 @@ interface ColumnDefinition {
 const COLUMNS: readonly ColumnDefinition[] = [
   { key: 'documento', label: 'Documento', width: '17%' },
   { key: 'cliente', label: 'Cliente', width: '31%' },
-  { key: 'emissao', label: 'Emissao', width: '9%' },
+  { key: 'emissao', label: 'Emissão', width: '9%' },
   { key: 'vencimento', label: 'Vencimento', width: '9%' },
   { key: 'dataDaBaixa', label: 'Data da Baixa', width: '9%' },
   { key: 'baseParaBaixa', label: 'Base para Baixa', width: '13%', numeric: true },
-  { key: 'comissao', label: 'Comissao', width: '12%', numeric: true }
+  { key: 'comissao', label: 'Comissão', width: '12%', numeric: true }
 ];
 
 export function buildPrevisaoHtmlDocument(vm: PrevisaoPdfViewModel, generatedAtLabel: string): string {
@@ -53,12 +53,12 @@ export function buildPrevisaoHtmlDocument(vm: PrevisaoPdfViewModel, generatedAtL
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <title>Previsao de Comissoes</title>
+    <title>Previsão de Comissões</title>
     <style>${BASE_CSS}</style>
   </head>
   <body>
     ${buildDocumentHeaderHtml(vm.company)}
-    ${buildTitleHtml('Previsao de Comissoes', 'Relatorio de previsao para conferencia')}
+    ${buildTitleHtml('Previsão de Comissões', 'Relatório de previsão para conferência')}
     ${buildDocumentMetaHtml(vm.identity, generatedAtLabel)}
     <table>
       <colgroup>
@@ -73,7 +73,7 @@ export function buildPrevisaoHtmlDocument(vm: PrevisaoPdfViewModel, generatedAtL
         ${rowsHtml}
       </tbody>
     </table>
-    ${buildTotalBlockHtml('Total da Previsao', vm.total)}
+    ${buildTotalBlockHtml('Total da Previsão', vm.total)}
     ${buildSignatureBlockHtml()}
   </body>
 </html>`;

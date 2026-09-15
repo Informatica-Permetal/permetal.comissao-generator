@@ -123,7 +123,7 @@ describe('generatePrevisaoPdfs', () => {
     expect(result.generated).toHaveLength(1);
     const [generated] = result.generated;
     expect(generated.filePath).toBe(
-      join(reportRoot, 'Previsao', 'Gerados', '2026-09-10_PREVISAO_0103_000090_CARLOS_EDUARDO_ROSA.pdf')
+      join(reportRoot, 'Previsão', 'Gerados', '2026-09-10_PREVISAO_0103_000090_CARLOS_EDUARDO_ROSA.pdf')
     );
     expect(existsSync(generated.filePath)).toBe(true);
     expect(readFileSync(generated.filePath)).toEqual(FAKE_PDF_BUFFER);
@@ -131,7 +131,7 @@ describe('generatePrevisaoPdfs', () => {
 
     const htmlPassedToRender = renderPdf.mock.calls[0][0] as string;
     expect(htmlPassedToRender).toContain('CARLOS EDUARDO ROSA');
-    expect(htmlPassedToRender).toContain('Total da Previsao');
+    expect(htmlPassedToRender).toContain('Total da Previsão');
   });
 
   it('gera um arquivo separado por vendedor+filial quando ha varios grupos', async () => {
@@ -200,6 +200,6 @@ describe('generateRelacaoPdfs', () => {
     );
     expect(renderPdf).toHaveBeenCalledTimes(1);
     expect(renderPdf.mock.calls[0][0]).toContain('R$ 191,38');
-    expect(renderPdf.mock.calls[0][0]).toContain('Total da Comissao');
+    expect(renderPdf.mock.calls[0][0]).toContain('Total da Comissão');
   });
 });

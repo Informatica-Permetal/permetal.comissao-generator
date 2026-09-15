@@ -1,15 +1,24 @@
 import { embedImageAsDataUri } from '../embedImage';
 import { escapeHtml } from '../format';
+import { buildPerforatedMetalMotif } from './perforatedMetal';
 import type { PdfCompanyInfo, PdfDocumentIdentity } from '../types';
 
-export function buildDocumentHeaderHtml(company: PdfCompanyInfo, generatedAtLabel: string): string {
+/**
+ * Brand letterhead (logo + brand/legal identity) plus a decorative industrial
+ * motif. Deliberately does NOT repeat the specific branch/seller identity -
+ * that lives exactly once, in `buildDocumentMetaHtml` below - and does NOT
+ * show a generation timestamp here either, for the same reason (single
+ * source of truth, per branch instruction: an information appears once, in
+ * the right place).
+ */
+export function buildDocumentHeaderHtml(company: PdfCompanyInfo): string {
   const logoDataUri = company.logoPath ? embedImageAsDataUri(company.logoPath) : null;
   const logoHtml = logoDataUri
     ? `<img class="doc-header__logo" src="${logoDataUri}" alt="${escapeHtml(company.displayName)}" />`
     : '';
 
+  const brandName = company.legalName ?? company.brandLabel ?? company.displayName;
   const companyLines: string[] = [];
-  if (company.legalName) companyLines.push(escapeHtml(company.legalName));
   if (company.cnpj) companyLines.push(`CNPJ: ${escapeHtml(company.cnpj)}`);
   const addressLine = formatAddressLine(company);
   if (addressLine) companyLines.push(escapeHtml(addressLine));
@@ -19,13 +28,11 @@ export function buildDocumentHeaderHtml(company: PdfCompanyInfo, generatedAtLabe
       <div class="doc-header__brand">
         ${logoHtml}
         <div class="doc-header__company">
-          <strong>${escapeHtml(company.displayName)}</strong>
+          <strong>${escapeHtml(brandName)}</strong>
           ${companyLines.map((line) => `<span>${line}</span>`).join('')}
         </div>
       </div>
-      <div class="doc-header__meta">
-        <div>Gerado em ${escapeHtml(generatedAtLabel)}</div>
-      </div>
+      ${buildPerforatedMetalMotif()}
     </header>
   `;
 }
@@ -48,21 +55,30 @@ export function buildTitleHtml(title: string, subtitle: string): string {
   `;
 }
 
-export function buildIdentityHtml(identity: PdfDocumentIdentity): string {
+/**
+ * The single authoritative place where this document's seller, branch and
+ * generation date appear - vendor and branch identity are never repeated
+ * anywhere else in the body (the letterhead above shows the issuing
+ * company/brand, not the branch; the running page header/footer show only
+ * short codes for page-tracking, never the full names again).
+ */
+export function buildDocumentMetaHtml(identity: PdfDocumentIdentity, generatedAtLabel: string): string {
   return `
-    <section class="doc-identity">
-      <dl>
-        <dt>Vendedor</dt>
-        <dd>${escapeHtml(identity.sellerName || '-')}</dd>
-        <dt>Codigo</dt>
-        <dd>${escapeHtml(identity.sellerCode)}</dd>
-      </dl>
-      <dl>
-        <dt>Filial</dt>
-        <dd>${escapeHtml(identity.branchName || '-')}</dd>
-        <dt>Codigo da filial</dt>
-        <dd>${escapeHtml(identity.branchCode)}</dd>
-      </dl>
+    <section class="doc-meta">
+      <div class="doc-meta__item">
+        <p class="doc-meta__label">Vendedor</p>
+        <p class="doc-meta__value">${escapeHtml(identity.sellerName || '-')}</p>
+        <p class="doc-meta__sub">Codigo ${escapeHtml(identity.sellerCode)}</p>
+      </div>
+      <div class="doc-meta__item">
+        <p class="doc-meta__label">Filial</p>
+        <p class="doc-meta__value">${escapeHtml(identity.branchName || '-')}</p>
+        <p class="doc-meta__sub">Codigo ${escapeHtml(identity.branchCode)}</p>
+      </div>
+      <div class="doc-meta__item">
+        <p class="doc-meta__label">Data de Geracao</p>
+        <p class="doc-meta__value">${escapeHtml(generatedAtLabel)}</p>
+      </div>
     </section>
   `;
 }
@@ -93,24 +109,32 @@ export function buildSignatureBlockHtml(): string {
   `;
 }
 
+/**
+ * Chromium's native running header, rendered identically on EVERY page
+ * (including page 1, above our own HTML content) - kept deliberately tiny
+ * and code-only (not the full names already shown once in the in-document
+ * meta block) so it reads as a page-tracking utility, not a second
+ * restatement of the document's identity.
+ */
 export function buildPrintHeaderTemplate(
   company: PdfCompanyInfo,
   modeTitle: string,
   identity: PdfDocumentIdentity
 ): string {
+  const brandName = company.legalName ?? company.brandLabel ?? company.displayName;
   return `
-    <div style="font-size:8px; width:100%; padding:0 24px; display:flex; justify-content:space-between;
-                color:#888; font-family:Arial,sans-serif;">
-      <span>${escapeHtml(company.displayName)} - ${escapeHtml(modeTitle)}</span>
-      <span>${escapeHtml(identity.sellerName)} (${escapeHtml(identity.sellerCode)}) - Filial ${escapeHtml(identity.branchCode)}</span>
+    <div style="font-size:7px; width:100%; padding:0 24px 3px; display:flex; justify-content:space-between;
+                color:#9a9a9a; font-family:Arial,sans-serif; border-bottom:0.5px solid #d8d8d8;">
+      <span>${escapeHtml(brandName)} - ${escapeHtml(modeTitle)}</span>
+      <span>Vend. ${escapeHtml(identity.sellerCode)} - Filial ${escapeHtml(identity.branchCode)}</span>
     </div>
   `;
 }
 
 export function buildPrintFooterTemplate(): string {
   return `
-    <div style="font-size:8px; width:100%; padding:0 24px; display:flex; justify-content:space-between;
-                color:#666; font-family:Arial,sans-serif;">
+    <div style="font-size:7px; width:100%; padding:3px 24px 0; display:flex; justify-content:space-between;
+                color:#9a9a9a; font-family:Arial,sans-serif; border-top:0.5px solid #d8d8d8;">
       <span>Documento interno para conferencia</span>
       <span>Pagina <span class="pageNumber"></span> de <span class="totalPages"></span></span>
     </div>

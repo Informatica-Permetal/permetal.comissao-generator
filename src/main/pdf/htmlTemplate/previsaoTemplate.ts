@@ -3,7 +3,7 @@ import type { PrevisaoPdfViewModel } from '../types';
 import { BASE_CSS } from './baseCss';
 import {
   buildDocumentHeaderHtml,
-  buildIdentityHtml,
+  buildDocumentMetaHtml,
   buildSignatureBlockHtml,
   buildTitleHtml,
   buildTotalBlockHtml
@@ -12,17 +12,18 @@ import {
 interface ColumnDefinition {
   key: string;
   label: string;
+  width: string;
   numeric?: boolean;
 }
 
 const COLUMNS: readonly ColumnDefinition[] = [
-  { key: 'documento', label: 'Documento' },
-  { key: 'cliente', label: 'Cliente' },
-  { key: 'emissao', label: 'Emissao' },
-  { key: 'vencimento', label: 'Vencimento' },
-  { key: 'dataDaBaixa', label: 'Data da Baixa' },
-  { key: 'baseParaBaixa', label: 'Base para Baixa', numeric: true },
-  { key: 'comissao', label: 'Comissao', numeric: true }
+  { key: 'documento', label: 'Documento', width: '17%' },
+  { key: 'cliente', label: 'Cliente', width: '31%' },
+  { key: 'emissao', label: 'Emissao', width: '9%' },
+  { key: 'vencimento', label: 'Vencimento', width: '9%' },
+  { key: 'dataDaBaixa', label: 'Data da Baixa', width: '9%' },
+  { key: 'baseParaBaixa', label: 'Base para Baixa', width: '13%', numeric: true },
+  { key: 'comissao', label: 'Comissao', width: '12%', numeric: true }
 ];
 
 export function buildPrevisaoHtmlDocument(vm: PrevisaoPdfViewModel, generatedAtLabel: string): string {
@@ -35,9 +36,9 @@ export function buildPrevisaoHtmlDocument(vm: PrevisaoPdfViewModel, generatedAtL
             <tr class="data-row">
               <td>${escapeHtml(row.documento)}</td>
               <td>${escapeHtml(row.cliente)}</td>
-              <td>${escapeHtml(row.emissao)}</td>
-              <td>${escapeHtml(row.vencimento)}</td>
-              <td>${escapeHtml(row.dataDaBaixa)}</td>
+              <td class="nowrap">${escapeHtml(row.emissao)}</td>
+              <td class="nowrap">${escapeHtml(row.vencimento)}</td>
+              <td class="nowrap">${escapeHtml(row.dataDaBaixa)}</td>
               <td class="num">${escapeHtml(row.baseParaBaixa)}</td>
               <td class="num">${escapeHtml(row.comissao)}</td>
             </tr>
@@ -56,10 +57,13 @@ export function buildPrevisaoHtmlDocument(vm: PrevisaoPdfViewModel, generatedAtL
     <style>${BASE_CSS}</style>
   </head>
   <body>
-    ${buildDocumentHeaderHtml(vm.company, generatedAtLabel)}
+    ${buildDocumentHeaderHtml(vm.company)}
     ${buildTitleHtml('Previsao de Comissoes', 'Relatorio de previsao para conferencia')}
-    ${buildIdentityHtml(vm.identity)}
+    ${buildDocumentMetaHtml(vm.identity, generatedAtLabel)}
     <table>
+      <colgroup>
+        ${COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
+      </colgroup>
       <thead>
         <tr>
           ${COLUMNS.map((c) => `<th${c.numeric ? ' class="num"' : ''}>${escapeHtml(c.label)}</th>`).join('')}

@@ -20,7 +20,7 @@ export async function renderHtmlToPdf(html: string, options: RenderPdfOptions): 
     const window = getUtilityWindow();
     await window.loadFile(htmlPath);
     return await window.webContents.printToPDF({
-      landscape: true,
+      landscape: false,
       pageSize: 'A4',
       printBackground: true,
       preferCSSPageSize: false,

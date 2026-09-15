@@ -808,4 +808,85 @@ Sem automacao de janela nativa disponivel neste ambiente, os seguintes gestos de
 | `npm run build` | OK - `out/main` 81,00 kB (identico a Fase 6 - confirma zero mudanca de codigo de producao) |
 | `npm run dist` | OK - gerou `release\Formatador Comissao-Setup-1.0.0.exe` |
 
+## Revisao Visual/UX e PDF Retrato (CONCLUIDA)
+
+Fase explicitamente **nao-funcional**: revisao completa de UI/UX do aplicativo e redesenho completo dos PDFs, incluindo a troca de orientacao de A4 paisagem para **A4 retrato**. Regras financeiras, contratos de XLSX, agrupamento vendedor+filial, totais e logica de arquivamento/historico permanecem intocados (confirmado pelos 115 testes automatizados existentes, inalterados, todos verdes).
+
+### Direcao visual adotada
+
+Identidade neutra, premium, industrial-minimalista: sidebar escura fixa com navegacao por icone (Lucide), fundo neutro claro, cartoes com borda/sombra suave, paleta de tokens CSS (`src/renderer/src/App.css`) em vez de estilos soltos. Sem emojis como icone de interface. O shell do app continua generico ("Formatador Comissao"), sem virar "Sistema Permetal".
+
+### Problema central identificado e corrigido (repeticao de vendedor/filial no PDF)
+
+Diagnostico: o cabecalho Chromium nativo, o bloco de logo/empresa e o bloco de identidade do documento repetiam a mesma informacao de filial/vendedor de tres formas diferentes na mesma pagina.
+
+Correcao:
+- `src/main/companies/brandLabel.ts` (novo) deriva um **nome de marca curto** (ex.: "Permetal", "MG Zinc") a partir do logo ja associado a filial, distinto do nome completo da filial - usado apenas no cabecalho/letterhead.
+- `src/main/pdf/htmlTemplate/layout.ts` foi reescrito: `buildDocumentHeaderHtml` agora mostra razao social (se cadastrada) ou o nome de marca curto (fallback, nunca inventa dado); `buildDocumentMetaHtml` (novo, substitui `buildIdentityHtml`) e o **unico** lugar no corpo do documento onde vendedor+filial aparecem, em um bloco de 3 colunas (VENDEDOR / FILIAL / DATA DE GERACAO), exatamente como especificado.
+- O cabecalho/rodape nativo do Chromium (`buildPrintHeaderTemplate`/`buildPrintFooterTemplate`) foi reduzido a apenas codigos, em cinza discreto (ex.: "Vend. 000097 - Filial 0103"), lendo como utilitario de paginacao, nao como uma terceira repeticao da identidade completa.
+- Verificado visualmente com e sem dados cadastrais completos (CNPJ/razao social/endereco) - em ambos os casos a informacao aparece exatamente uma vez no corpo do documento.
+
+### PDF: A4 retrato (mudanca de requisito)
+
+- `src/main/pdf/renderPdf.ts`: `printToPDF({ landscape: false, pageSize: 'A4', ... })`.
+- `src/main/pdf/htmlTemplate/baseCss.ts` reescrito para retrato: nova tipografia, `.doc-header`/`.doc-meta`/tabela com `table-layout: fixed`, bloco de total (`.total-block__inner`) agora um cartao escuro de destaque, bloco de assinatura com separador.
+- `previsaoTemplate.ts`/`relacaoTemplate.ts`: colunas redesenhadas para retrato via `<colgroup>` com larguras proprias por coluna (nao e a tabela paisagem encolhida) - Previsao prioriza Documento/Cliente; Relacao prioriza Cliente/Pedido/Titulo.
+- Motivo decorativo "chapa perfurada" (`src/main/pdf/htmlTemplate/perforatedMetal.ts`, novo) - SVG inline gerado localmente (sem imagem remota, sem dependencia de internet), grade de circulos sobre gradiente sutil, usado no canto superior direito do cabecalho institucional.
+- Documentacao atualizada para refletir o novo padrao (nenhuma referencia a "paisagem/landscape" como orientacao-alvo permanece): `.claude/skills/formatador-comissao/references/pdf-design.md`, `implementation-plan.md`, `prompts-fases.md`, `docs/Formatador-Comissao-Especificacao.md`, `docs/Formatador-Comissao-Prompts.md`. A entrada historica "A4 paisagem | PASS" na tabela de QA visual da Fase 7 (acima) foi mantida como registro do que era verdade naquela fase e esta agora superada por esta revisao.
+
+### Paginacao multi-pagina (verificada com PDFs reais gerados nesta fase)
+
+| Cenario | Resultado |
+|---|---|
+| Previsao 3 linhas / 2 vendedores, 1 pagina cada | PASS - "Pagina 1 de 1" em ambos, sem duplicacao |
+| Previsao sintetica 130 linhas | PASS - 4 paginas (32+44+44+10), cabecalho institucional completo so na pagina 1, cabecalho de tabela repetido em todas, IDs sequenciais 000200000-000200129 sem lacuna nem duplicata, total R$ 1.300,00 (=130x R$10,00) e assinatura apenas na pagina 4 |
+| Relacao sintetica 60 linhas | PASS - 2 paginas (33+27... nota: primeira pagina com cabecalho cheio comporta menos linhas), IDs 000300000-000300059 continuos, total R$ 9.000,00 (=60x R$150,00) |
+| Relacao/Previsao 1 linha (fluxo real via UI/watcher) | PASS - gerados por clique real em "Gerar PDFs", nao script sintetico isolado |
+
+### Frontend redesenhado (componentes)
+
+Novo sistema de design em `src/renderer/src/App.css` (tokens de cor/espaco/raio/sombra) consumido por todos os componentes abaixo. Novos componentes compartilhados: `Sidebar.tsx`, `PageHeader.tsx` (voltar por icone com tooltip), `ToastProvider.tsx` (toasts de sucesso/erro), `ConfirmDialogProvider.tsx` (modal de confirmacao substituindo `window.confirm`).
+
+Paginas/telas redesenhadas: `App.tsx` (shell com sidebar fixa), `HomePage.tsx` (hero + cards com icone + documentos recentes reais + status operacional, **sem nenhum numero financeiro inventado**), `ImportPage.tsx` (dropzone, previa em cartoes/tabela, resultado com acoes por icone), `SettingsPage.tsx` (grid de informacao + secao de filiais), `CompanyProfilesSection.tsx` (cartao por filial com logo/badge/nome separados da acao "Trocar logo", campos agrupados em "Identificacao"/"Endereco", **novo affordance "+ Nova filial"** para cadastrar filiais sem seed conhecido), `HistoricoPage.tsx` (toolbar de filtros, cartoes de lote, dialogo de confirmacao real, toasts), `FirstRunPage.tsx` (visual alinhado ao novo sistema). `PlaceholderPage.tsx` (nao usado) foi removido.
+
+### Auditoria de dados cadastrais (CNPJ/razao social/endereco/Tres-S)
+
+Buscado exaustivamente em todo o projeto (skill, docs, assets) - **nenhum CNPJ, razao social ou endereco real foi encontrado para nenhuma filial**, e **nenhum codigo de filial conhecido existe para Tres-S**. Por isso, nenhum dado cadastral real foi preenchido (constraint explicita: nao inventar CNPJ nem buscar na internet). O logo `TRES-S.png` ja esta empacotado e selecionavel via "Trocar logo"; a arquitetura ja suporta multiplas filiais compartilhando um logo (`brandLogos.ts`/`seedCompanyProfiles.ts`, pre-existente); o novo affordance "+ Nova filial" permite cadastrar a filial Tres-S manualmente assim que o codigo for conhecido. Nada foi inventado ou seedado com placeholder persistente.
+
+### Validacao visual real (nao simulada)
+
+Executado via dois scripts temporarios (deletados ao final, junto com seus hooks em `main/index.ts`, seguindo o padrao ja usado nas fases anteriores):
+- Um script clicou de fato pela UI real (Electron real, `app.getPath`/`LOCALAPPDATA` isolados em pasta temporaria) - primeiro uso, Previsao (dropzone -> arquivo real solto na pasta Entrada monitorada -> previa -> gerar -> resultado), Relacao (idem), Historico, Home com documentos recentes, Configuracoes (cartao completo e cartao em branco), "+ Nova filial" - 13 capturas de tela reais via `webContents.capturePage()`.
+- Um segundo script gerou PDFs sinteticos-mas-validos (nunca dados reais do Protheus) cobrindo 1 pagina e 4/2 paginas para validar paginacao em volume.
+
+### Testes tecnicos
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK - sem erros |
+| `npm run lint` | OK - 0 erros, 2 avisos pre-existentes de `react-refresh/only-export-components` (padrao aceitavel para arquivos de contexto+hook) |
+| `npm run test` | OK - **115/115** testes, inalterados - confirma que nenhuma regra financeira/contrato/agrupamento foi tocada |
+| `npm run build` | OK |
+
+### Pendencias conhecidas
+
+- CNPJ, razao social e endereco continuam em branco para todas as filiais (0103-0106) - nenhum dado real disponivel no projeto para preencher, por desenho.
+- Codigo de filial da Tres-S continua desconhecido - filial nao sera cadastrada ate que o codigo real apareca em uma importacao ou seja informado pelo usuario.
+- Icone do aplicativo: mantido o `Formatador-Comissao.ico` ja fornecido na Fase 6 (asset proprio, nao generico) - nao foi alterado nesta fase.
+### Novo instalador gerado e re-testado
+
+Versao elevada `1.0.0` -> `1.1.0` (build visivelmente diferente - evita sobrescrever silenciosamente o instalador `1.0.0.exe` ja validado na Fase 7, mantendo os dois artefatos rastreaveis lado a lado em `release/`).
+
+`release\Formatador Comissao-Setup-1.1.0.exe` (118.149.390 bytes, ~112,7 MB).
+
+| Verificacao | Resultado |
+|---|---|
+| `npm run dist` | OK - gerou o instalador sem erros |
+| Assinatura de codigo | `Get-AuthenticodeSignature` confirma `NotSigned` - limitacao conhecida inalterada (as linhas "signing with signtool.exe" do electron-builder sao apenas o carimbo de integridade do asar, nao uma assinatura Authenticode real) |
+| Instalacao silenciosa (`/S /D=...`) em pasta isolada | OK - exit code 0, todos os arquivos esperados presentes |
+| Abrir o app instalado | OK - processo permanece rodando, titulo da janela "Formatador Comissao" |
+| Desinstalacao silenciosa (`/S`) | OK - exit code 0, executavel removido |
+
+Smoke test reduzido (nao o roteiro completo de 14 passos da Fase 6/7, ja coberto anteriormente) - suficiente para confirmar que o pacote nao esta corrompido e reflete a nova UI/PDF. Recomenda-se um passe manual completo (import real, geracao, impressao) antes de distribuir para os usuarios finais.
+
 **PARADO conforme instruido - nao prosseguir para a Fase 8 (ou etapa equivalente) sem aprovacao explicita.**

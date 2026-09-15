@@ -11,6 +11,7 @@ import { buildPrintFooterTemplate, buildPrintHeaderTemplate } from './htmlTempla
 import { buildPdfFileName, resolveGeradosDir, resolveUniqueOutputPath } from './outputPath';
 import { buildPrevisaoViewModel } from './previsaoViewModel';
 import { buildRelacaoViewModel } from './relacaoViewModel';
+import { toPdfCompanyInfo } from './companyInfo';
 import type { RenderPdfOptions } from './renderPdf';
 import type { PdfDocumentIdentity } from './types';
 
@@ -64,17 +65,7 @@ async function generateGroupPdfs<TRow, TViewModel extends PdfViewModel>(
     const html = buildHtml(viewModel, generatedAtLabel);
 
     const pdfBuffer = await renderPdf(html, {
-      headerTemplate: buildPrintHeaderTemplate(
-        {
-          logoPath: company.logoPath,
-          displayName: company.displayName,
-          legalName: company.legalName,
-          cnpj: company.cnpj,
-          address: company.address
-        },
-        modeTitle,
-        viewModel.identity
-      ),
+      headerTemplate: buildPrintHeaderTemplate(toPdfCompanyInfo(company), modeTitle, viewModel.identity),
       footerTemplate: buildPrintFooterTemplate()
     });
 

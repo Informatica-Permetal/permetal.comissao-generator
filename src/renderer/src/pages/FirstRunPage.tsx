@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { FolderCog, FolderOpen, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { APP_NAME } from '@shared/constants/app';
 import type { AppState, FolderPermissionResult } from '@shared/types/settings';
 
 interface FirstRunPageProps {
@@ -47,26 +49,57 @@ export default function FirstRunPage({ initialState, onCompleted }: FirstRunPage
   }
 
   return (
-    <main className="first-run">
-      <h1>Configuracao inicial</h1>
-      <p>Escolha onde o Formatador Comissao vai guardar os relatorios importados e os PDFs gerados.</p>
-      <p className="first-run__path">{path}</p>
-      <div className="first-run__actions">
-        <button type="button" onClick={() => void handleChooseFolder()}>
-          Escolher outra pasta
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleConfirm()}
-          disabled={testing || submitting || permission?.ok !== true}
-        >
-          {submitting ? 'Criando pastas...' : 'Concluir configuracao inicial'}
-        </button>
+    <div className="first-run">
+      <span className="first-run__icon">
+        <FolderCog size={26} />
+      </span>
+      <div className="card first-run__card">
+        <h1>Configuracao inicial</h1>
+        <p>
+          Bem-vindo ao {APP_NAME}. Escolha onde os relatorios importados e os PDFs gerados serao guardados.
+        </p>
+        <p className="first-run__path">
+          <FolderOpen size={16} />
+          {path}
+        </p>
+        <div className="first-run__actions">
+          <button type="button" className="btn" onClick={() => void handleChooseFolder()}>
+            Escolher outra pasta
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => void handleConfirm()}
+            disabled={testing || submitting || permission?.ok !== true}
+          >
+            {submitting ? 'Criando pastas...' : 'Concluir configuracao inicial'}
+          </button>
+        </div>
+        {testing && (
+          <div className="first-run__status">
+            <span className="spinner" />
+            Testando permissao de criar, gravar e excluir...
+          </div>
+        )}
+        {permission && !permission.ok && (
+          <div className="first-run__status first-run__error">
+            <AlertTriangle size={15} />
+            {permission.reason}
+          </div>
+        )}
+        {permission?.ok && (
+          <div className="first-run__status first-run__ok">
+            <CheckCircle2 size={15} />
+            Permissao verificada: criar, gravar e excluir OK.
+          </div>
+        )}
+        {submitError && (
+          <div className="first-run__status first-run__error">
+            <AlertTriangle size={15} />
+            {submitError}
+          </div>
+        )}
       </div>
-      {testing && <p>Testando permissao de criar, gravar e excluir...</p>}
-      {permission && !permission.ok && <p className="first-run__error">{permission.reason}</p>}
-      {permission?.ok && <p className="first-run__ok">Permissao verificada: criar, gravar e excluir OK.</p>}
-      {submitError && <p className="first-run__error">{submitError}</p>}
-    </main>
+    </div>
   );
 }

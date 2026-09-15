@@ -500,7 +500,7 @@ The user will provide actual company logos and may provide a reference PDF/image
 
 ## 2. Page format
 
-Default: A4 landscape.
+Default: A4 portrait.
 
 Requirements:
 
@@ -1122,7 +1122,7 @@ Implement:
 - HTML/CSS report renderer;
 - Relacao PDF layout;
 - Previsao PDF layout;
-- multi-page A4 landscape pagination;
+- multi-page A4 portrait pagination;
 - repeated table headers;
 - page numbering;
 - final total only;

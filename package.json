@@ -1,7 +1,7 @@
 {
   "name": "formatador-comissao",
   "productName": "Formatador Comissao",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Formatador Comissao - formata em PDF as exportacoes de comissao do TOTVS Protheus Smart View",
   "author": "Permetal",
@@ -22,6 +22,7 @@
     "chokidar": "^5.0.0",
     "decimal.js": "^10.6.0",
     "exceljs": "^4.4.0",
+    "lucide-react": "^1.46.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -53,13 +54,29 @@
       "output": "release",
       "buildResources": "resources"
     },
-    "files": ["out/**/*", "package.json"],
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
     "extraResources": [
-      { "from": "resources/brand-logos", "to": "brand-logos" },
-      { "from": "resources/icon.ico", "to": "icon.ico" }
+      {
+        "from": "resources/brand-logos",
+        "to": "brand-logos"
+      },
+      {
+        "from": "resources/icon.ico",
+        "to": "icon.ico"
+      }
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "resources/icon.ico",
       "artifactName": "${productName}-Setup-${version}.${ext}"
     },

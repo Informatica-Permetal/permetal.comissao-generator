@@ -222,7 +222,7 @@ Implement company/branch profiles keyed by branch code, including editable:
 
 Use local assets only.
 
-Implement Chromium HTML/CSS -> PDF generation with A4 landscape, print backgrounds, strong corporate typography, clean spacing, and reliable multi-page behavior.
+Implement Chromium HTML/CSS -> PDF generation with A4 portrait, print backgrounds, strong corporate typography, clean spacing, and reliable multi-page behavior.
 
 ### Relacao PDF
 

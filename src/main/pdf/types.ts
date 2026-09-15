@@ -3,6 +3,8 @@ import type { CompanyAddress } from '@shared/types/companyProfile';
 export interface PdfCompanyInfo {
   logoPath: string | null;
   displayName: string;
+  /** Short brand label derived from the logo (e.g. "Permetal") - distinct text from the branch's own display name, so the letterhead and the document identity block never repeat the same wording. */
+  brandLabel: string | null;
   legalName: string | null;
   cnpj: string | null;
   address: CompanyAddress | null;

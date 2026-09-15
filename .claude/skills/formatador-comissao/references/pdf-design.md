@@ -8,7 +8,7 @@ The user will provide actual company logos and may provide a reference PDF/image
 
 ## 2. Page format
 
-Default: A4 landscape.
+Default: A4 portrait.
 
 Requirements:
 

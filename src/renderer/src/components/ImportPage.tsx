@@ -1,7 +1,24 @@
 import { useEffect, useState } from 'react';
+import {
+  FileSpreadsheet,
+  FileStack,
+  FolderOpen,
+  Upload,
+  Wand2,
+  AlertTriangle,
+  AlertCircle,
+  FileCheck2,
+  Printer,
+  FolderOutput,
+  RefreshCw,
+  X,
+  Settings as SettingsIcon
+} from 'lucide-react';
 import type { ReportMode } from '@shared/constants/folders';
 import type { BatchPreview, ImportServiceError, SourceKind } from '@shared/types/import';
 import type { GenerateReportResult } from '@shared/types/pdf';
+import PageHeader from './PageHeader';
+import { useToast } from './ToastProvider';
 
 interface ImportPageProps {
   mode: ReportMode;
@@ -22,6 +39,11 @@ type PageState =
   | { status: 'generated'; preview: BatchPreview; result: GenerateReportResult }
   | { status: 'generateError'; preview: BatchPreview; message: string };
 
+const MODE_ICON: Record<ReportMode, typeof FileSpreadsheet> = {
+  Previsao: FileSpreadsheet,
+  Relacao: FileStack
+};
+
 export default function ImportPage({
   mode,
   title,
@@ -33,7 +55,7 @@ export default function ImportPage({
 }: ImportPageProps) {
   const [state, setState] = useState<PageState>({ status: 'idle' });
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [printMessage, setPrintMessage] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const unsubscribe = window.api.reports.onEntradaFileDetected((payload) => {
@@ -96,95 +118,95 @@ export default function ImportPage({
     try {
       const result = await window.api.reports.generatePdfs(preview);
       setState({ status: 'generated', preview, result });
+      showToast('success', `${result.generated.length} PDF(s) gerado(s) com sucesso.`);
     } catch (error) {
-      setState({
-        status: 'generateError',
-        preview,
-        message: error instanceof Error ? error.message : 'Falha ao gerar PDFs.'
-      });
+      const message = error instanceof Error ? error.message : 'Falha ao gerar PDFs.';
+      setState({ status: 'generateError', preview, message });
+      showToast('error', message);
     }
   }
 
   async function handlePrint(pdfPath: string): Promise<void> {
-    setPrintMessage(null);
     const result = await window.api.pdf.print(pdfPath);
-    if (!result.ok) setPrintMessage(result.error ?? 'Falha ao imprimir.');
+    if (!result.ok) showToast('error', result.error ?? 'Falha ao imprimir.');
   }
 
   function reset(): void {
     setState({ status: 'idle' });
-    setPrintMessage(null);
   }
 
+  const Icon = MODE_ICON[mode];
+
   return (
-    <section className="import-page">
-      <h2>{title}</h2>
+    <section>
+      <PageHeader icon={Icon} title={title} onBack={onBack} />
 
       {(state.status === 'idle' || state.status === 'previewing' || state.status === 'previewError') && (
         <>
           <div
-            className={`import-page__dropzone${isDraggingOver ? ' import-page__dropzone--active' : ''}`}
+            className={`dropzone card${isDraggingOver ? ' dropzone--active' : ''}`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
-            <p>Arraste um arquivo .xlsx aqui</p>
-            <div className="import-page__actions">
-              <button type="button" onClick={() => void handleChooseFile()}>
-                + Selecionar arquivo
+            <span className="dropzone__icon">
+              <Upload size={24} />
+            </span>
+            <p className="dropzone__title">Arraste seu relatorio aqui</p>
+            <p className="section-hint" style={{ margin: 0 }}>
+              Aceita arquivos .xlsx exportados do Protheus Smart View
+            </p>
+            <div className="dropzone__actions">
+              <button type="button" className="btn btn--primary" onClick={() => void handleChooseFile()}>
+                <FileSpreadsheet size={16} /> Selecionar arquivo
               </button>
-              <button type="button" onClick={() => void handleOpenEntradaFolder()}>
-                Abrir pasta de entrada
+              <button type="button" className="btn" onClick={() => void handleOpenEntradaFolder()}>
+                <FolderOpen size={16} /> Abrir pasta de entrada
               </button>
             </div>
-            <p className="import-page__hint">
-              A pasta de Entrada deste modo esta sendo monitorada automaticamente.
+            <p className="dropzone__hint">
+              <FolderOutput size={13} /> A pasta de Entrada deste modo esta sendo monitorada automaticamente
             </p>
           </div>
 
-          {state.status === 'previewing' && <p>Lendo arquivo...</p>}
-
-          {state.status === 'previewError' && (
-            <ImportErrorMessage
-              error={state.error}
-              sourcePath={state.sourcePath}
-              onSwitchMode={onSwitchMode}
-            />
+          {state.status === 'previewing' && (
+            <div className="loading-row">
+              <span className="spinner" />
+              Lendo arquivo...
+            </div>
           )}
 
-          <button type="button" onClick={onBack}>
-            Voltar
-          </button>
+          {state.status === 'previewError' && (
+            <ImportErrorMessage error={state.error} sourcePath={state.sourcePath} onSwitchMode={onSwitchMode} />
+          )}
         </>
       )}
 
       {state.status === 'previewReady' && (
-        <PreviewSummary
-          preview={state.preview}
-          onConfirm={() => void handleGenerate()}
-          onCancel={reset}
-          onGoToSettings={onGoToSettings}
-        />
+        <PreviewSummary preview={state.preview} onConfirm={() => void handleGenerate()} onCancel={reset} onGoToSettings={onGoToSettings} />
       )}
 
-      {state.status === 'generating' && <p>Gerando PDFs...</p>}
+      {state.status === 'generating' && (
+        <div className="loading-row card" style={{ padding: 'var(--space-5)' }}>
+          <span className="spinner" />
+          Gerando PDFs...
+        </div>
+      )}
 
       {state.status === 'generateError' && (
-        <div>
-          <p className="import-page__error">{state.message}</p>
-          <button type="button" onClick={reset}>
+        <div className="card" style={{ padding: 'var(--space-5)' }}>
+          <div className="message-banner message-banner--error">
+            <AlertCircle size={16} />
+            {state.message}
+          </div>
+          <button type="button" className="btn" onClick={reset}>
             Tentar novamente
           </button>
         </div>
       )}
 
       {state.status === 'generated' && (
-        <GeneratedResults
-          result={state.result}
-          printMessage={printMessage}
-          onPrint={(path) => void handlePrint(path)}
-          onNewFile={reset}
-        />
+        <GeneratedResults result={state.result} onPrint={(path) => void handlePrint(path)} onNewFile={reset} />
       )}
     </section>
   );
@@ -202,26 +224,33 @@ function ImportErrorMessage({
   switch (error.kind) {
     case 'wrongMode':
       return (
-        <div className="import-page__error">
-          <p>
-            Este arquivo parece ser de <strong>{error.detectedMode}</strong>, nao de {error.expectedMode}.
-          </p>
-          <button type="button" onClick={() => onSwitchMode(error.detectedMode, sourcePath)}>
-            Processar como {error.detectedMode}
-          </button>
+        <div className="message-banner message-banner--warning">
+          <AlertTriangle size={16} />
+          <span>
+            Este arquivo parece ser de <strong>{error.detectedMode}</strong>, nao de {error.expectedMode}.{' '}
+            <button type="button" className="btn btn--sm" onClick={() => onSwitchMode(error.detectedMode, sourcePath)}>
+              Processar como {error.detectedMode}
+            </button>
+          </span>
         </div>
       );
     case 'missingHeaders':
       return (
-        <p className="import-page__error">
+        <div className="message-banner message-banner--error">
+          <AlertCircle size={16} />
           Colunas obrigatorias ausentes: {error.missingHeaders.join(', ')}
-        </p>
+        </div>
       );
     case 'temporaryFile':
     case 'alreadyProcessing':
     case 'unsupportedFileType':
     case 'unreadable':
-      return <p className="import-page__error">{error.message}</p>;
+      return (
+        <div className="message-banner message-banner--error">
+          <AlertCircle size={16} />
+          {error.message}
+        </div>
+      );
     default:
       return null;
   }
@@ -241,73 +270,89 @@ function PreviewSummary({
   const blocked = preview.missingBranchCodes.length > 0;
 
   return (
-    <div className="import-page__preview">
-      <dl className="import-page__summary">
-        <dt>Arquivo</dt>
-        <dd>{preview.sourceOriginalName}</dd>
-        <dt>Linhas</dt>
-        <dd>{preview.totalRows}</dd>
-        <dt>Vendedores</dt>
-        <dd>{preview.sellerCount}</dd>
-        <dt>Filiais</dt>
-        <dd>{preview.branchCount}</dd>
-        <dt>Documentos a gerar</dt>
-        <dd>{preview.documents.length}</dd>
-      </dl>
+    <div className="card preview-summary">
+      <div className="section-title">{preview.sourceOriginalName}</div>
+
+      <div className="preview-summary__grid">
+        <div className="stat">
+          <div className="stat__label">Linhas</div>
+          <div className="stat__value">{preview.totalRows}</div>
+        </div>
+        <div className="stat">
+          <div className="stat__label">Vendedores</div>
+          <div className="stat__value">{preview.sellerCount}</div>
+        </div>
+        <div className="stat">
+          <div className="stat__label">Filiais</div>
+          <div className="stat__value">{preview.branchCount}</div>
+        </div>
+        <div className="stat">
+          <div className="stat__label">Documentos</div>
+          <div className="stat__value">{preview.documents.length}</div>
+        </div>
+      </div>
 
       {preview.previouslyProcessedAt && (
-        <p className="import-page__warning">
-          Este arquivo ja foi processado em {new Date(preview.previouslyProcessedAt).toLocaleString('pt-BR')}.
-          Deseja processar novamente?
-        </p>
-      )}
-
-      {preview.warnings.length > 0 && (
-        <ul className="import-page__warning">
-          {preview.warnings.map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-        </ul>
-      )}
-
-      {blocked && (
-        <div className="import-page__error">
-          <p>Configure a(s) filial(is) antes de gerar: {preview.missingBranchCodes.join(', ')}</p>
-          <button type="button" onClick={onGoToSettings}>
-            Ir para Configuracoes
-          </button>
+        <div className="message-banner message-banner--warning">
+          <AlertTriangle size={16} />
+          Este arquivo ja foi processado em {new Date(preview.previouslyProcessedAt).toLocaleString('pt-BR')}. Deseja processar novamente?
         </div>
       )}
 
-      <table className="import-page__table">
-        <thead>
-          <tr>
-            <th>Filial</th>
-            <th>Codigo</th>
-            <th>Vendedor</th>
-            <th>Linhas</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {preview.documents.map((document) => (
-            <tr key={`${document.branchCode}-${document.sellerCode}`}>
-              <td>{document.branchCode}</td>
-              <td>{document.sellerCode}</td>
-              <td>{document.sellerName}</td>
-              <td>{document.rowCount}</td>
-              <td>{document.total}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {preview.warnings.length > 0 && (
+        <div className="message-banner message-banner--warning">
+          <AlertTriangle size={16} />
+          <ul style={{ margin: 0, paddingLeft: 16 }}>
+            {preview.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
-      <div className="import-page__actions">
-        <button type="button" onClick={onConfirm} disabled={blocked}>
-          Gerar PDFs
+      {blocked && (
+        <div className="message-banner message-banner--error">
+          <AlertCircle size={16} />
+          <span>
+            Configure a(s) filial(is) antes de gerar: {preview.missingBranchCodes.join(', ')}{' '}
+            <button type="button" className="btn btn--sm" onClick={onGoToSettings}>
+              <SettingsIcon size={14} /> Ir para Configuracoes
+            </button>
+          </span>
+        </div>
+      )}
+
+      <div className="data-table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Filial</th>
+              <th>Codigo</th>
+              <th>Vendedor</th>
+              <th>Linhas</th>
+              <th className="num">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {preview.documents.map((document) => (
+              <tr key={`${document.branchCode}-${document.sellerCode}`}>
+                <td>{document.branchCode}</td>
+                <td>{document.sellerCode}</td>
+                <td>{document.sellerName}</td>
+                <td>{document.rowCount}</td>
+                <td className="num">{document.total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="form-actions" style={{ padding: 0, border: 'none', marginTop: 'var(--space-4)' }}>
+        <button type="button" className="btn btn--primary" onClick={onConfirm} disabled={blocked}>
+          <Wand2 size={16} /> Gerar PDFs
         </button>
-        <button type="button" onClick={onCancel}>
-          Cancelar
+        <button type="button" className="btn btn--ghost" onClick={onCancel}>
+          <X size={16} /> Cancelar
         </button>
       </div>
     </div>
@@ -316,55 +361,64 @@ function PreviewSummary({
 
 function GeneratedResults({
   result,
-  printMessage,
   onPrint,
   onNewFile
 }: {
   result: GenerateReportResult;
-  printMessage: string | null;
   onPrint: (pdfPath: string) => void;
   onNewFile: () => void;
 }) {
   return (
-    <div>
-      <p>{result.generated.length} PDF(s) gerado(s) com sucesso.</p>
-      {printMessage && <p className="import-page__error">{printMessage}</p>}
-      <table className="import-page__table">
-        <thead>
-          <tr>
-            <th>Filial</th>
-            <th>Vendedor</th>
-            <th>Linhas</th>
-            <th>Total</th>
-            <th>Acoes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {result.generated.map((doc) => (
-            <tr key={doc.filePath}>
-              <td>{doc.branchCode}</td>
-              <td>
-                {doc.sellerName} ({doc.sellerCode})
-              </td>
-              <td>{doc.rowCount}</td>
-              <td>{doc.total}</td>
-              <td className="import-page__row-actions">
-                <button type="button" onClick={() => void window.api.pdf.open(doc.filePath)}>
-                  Abrir PDF
-                </button>
-                <button type="button" onClick={() => void window.api.pdf.openFolder(doc.filePath)}>
-                  Abrir pasta
-                </button>
-                <button type="button" onClick={() => onPrint(doc.filePath)}>
-                  Imprimir
-                </button>
-              </td>
+    <div className="card preview-summary">
+      <div className="message-banner message-banner--success">
+        <FileCheck2 size={16} />
+        {result.generated.length} PDF(s) gerado(s) com sucesso.
+      </div>
+      <div className="data-table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Filial</th>
+              <th>Vendedor</th>
+              <th>Linhas</th>
+              <th className="num">Total</th>
+              <th>Acoes</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <button type="button" onClick={onNewFile}>
-        Importar outro arquivo
+          </thead>
+          <tbody>
+            {result.generated.map((doc) => (
+              <tr key={doc.filePath}>
+                <td>{doc.branchCode}</td>
+                <td>
+                  {doc.sellerName} ({doc.sellerCode})
+                </td>
+                <td>{doc.rowCount}</td>
+                <td className="num">{doc.total}</td>
+                <td>
+                  <div className="data-table__actions">
+                    <button type="button" className="icon-btn" data-tooltip="Abrir PDF" onClick={() => void window.api.pdf.open(doc.filePath)}>
+                      <FileCheck2 size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      data-tooltip="Abrir pasta"
+                      onClick={() => void window.api.pdf.openFolder(doc.filePath)}
+                    >
+                      <FolderOpen size={16} />
+                    </button>
+                    <button type="button" className="icon-btn" data-tooltip="Imprimir" onClick={() => onPrint(doc.filePath)}>
+                      <Printer size={16} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" className="btn" style={{ marginTop: 'var(--space-4)' }} onClick={onNewFile}>
+        <RefreshCw size={16} /> Importar outro arquivo
       </button>
     </div>
   );

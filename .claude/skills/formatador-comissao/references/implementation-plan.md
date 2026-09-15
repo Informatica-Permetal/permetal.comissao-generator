@@ -119,7 +119,7 @@ Implement:
 - HTML/CSS report renderer;
 - Relacao PDF layout;
 - Previsao PDF layout;
-- multi-page A4 landscape pagination;
+- multi-page A4 portrait pagination;
 - repeated table headers;
 - page numbering;
 - final total only;

@@ -188,15 +188,15 @@ describe('migrateLegacyReportRootAndPaths', () => {
       id: 'doc-1',
       batchId: 'batch-1',
       mode: 'Previsao',
-      branchCode: '0103',
-      branchName: 'PERMETAL SAO PAULO',
+      groupingMode: 'separate_by_branch',
       sellerCode: '000009',
       sellerName: 'VENDEDOR TESTE',
       sourceRowCount: 1,
       commissionTotal: 'R$ 100,00',
       pdfPath: join(oldGeradosDir, 'doc.pdf'),
       generatedAt: '2026-03-01T00:00:00.000Z',
-      templateVersion: '1'
+      templateVersion: '1',
+      branches: [{ branchCode: '0103', branchName: 'PERMETAL SAO PAULO', rowCount: 1, subtotal: 'R$ 100,00' }]
     });
 
     migrateLegacyReportRootAndPaths(db, vi.fn());

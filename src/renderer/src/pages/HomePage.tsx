@@ -89,7 +89,10 @@ export default function HomePage({ onNavigate, appState }: HomePageProps) {
                   <FileText className="recent-item__icon" size={16} />
                   <div className="recent-item__main">
                     <div className="recent-item__title">
-                      {doc.sellerName} ({doc.sellerCode}) - {doc.branchCode}
+                      {doc.sellerName} ({doc.sellerCode}) -{' '}
+                      {doc.groupingMode === 'consolidated_by_seller'
+                        ? `Consolidado (${doc.branches.map((branch) => branch.branchCode).join(', ')})`
+                        : doc.branchCode}
                     </div>
                     <div className="recent-item__meta">
                       {modeDisplayLabel(doc.mode)} - {new Date(doc.generatedAt).toLocaleString('pt-BR')}

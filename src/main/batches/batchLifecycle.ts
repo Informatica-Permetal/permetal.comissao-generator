@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { CompanyProfile } from '@shared/types/companyProfile';
 import type { ReportMode } from '@shared/constants/folders';
-import type { SourceKind } from '@shared/types/import';
+import type { GroupingChoices, SourceKind } from '@shared/types/import';
+import type { GroupingMode } from '@shared/types/history';
 import type { GenerateReportResult } from '@shared/types/pdf';
 import { findUnconfiguredBranchCodes } from '../companies/branchConfiguration';
 import { computeFileHashSync } from '../import/computeFileHash';
@@ -23,6 +24,7 @@ import {
   updateBatchStatus
 } from '../storage/batchRepository';
 import { insertDocument } from '../storage/documentRepository';
+import { upsertBatchSellerGroupingModes } from '../storage/batchSellerGroupingRepository';
 import { archiveSourceFile } from './archiveSource';
 import { evacuateGeradosToHistorico } from './evacuateGerados';
 import { resolveProcessamentoDir } from './archivePaths';
@@ -36,6 +38,8 @@ export interface RunBatchGenerationParams {
   sourcePath: string;
   sourceKind: SourceKind;
   workspaceFilePath: string;
+  /** User's per-seller grouping choice from the preview; absent = every seller separado (unchanged default). */
+  groupingChoices?: GroupingChoices;
 }
 
 export interface RunBatchGenerationDeps {
@@ -54,15 +58,18 @@ export interface PublishDeps {
   reportRoot: string;
   lookupCompanyProfile: (branchCode: string) => CompanyProfile | null;
   renderPdf: (html: string, options: RenderPdfOptions) => Promise<Buffer>;
+  /** Per-seller grouping choice; a seller absent (or with a single branch) always publishes `separate_by_branch`. */
+  modeBySeller?: ReadonlyMap<string, GroupingMode>;
 }
 
 /**
  * The part of the lifecycle shared by a first-time generation and a later
  * regeneration: evacuate whatever currently occupies the mode's Gerados
  * folder to Historico, run the unchanged Fase 4 generator, verify every PDF
- * is real and non-empty, persist one `documents` row per generated PDF, and
- * update the batch's output count. Does NOT touch the source file or the
- * batch's own status - callers decide what "done" means for their case.
+ * is real and non-empty, persist one `documents` row per generated PDF
+ * (linked to one or more branches via `document_branches`), and update the
+ * batch's output count. Does NOT touch the source file or the batch's own
+ * status - callers decide what "done" means for their case.
  */
 export async function publishGeneratedDocuments(
   mode: ReportMode,
@@ -71,11 +78,11 @@ export async function publishGeneratedDocuments(
   generatedAt: Date,
   deps: PublishDeps
 ): Promise<GenerateReportResult> {
-  const { db, reportRoot, lookupCompanyProfile, renderPdf } = deps;
+  const { db, reportRoot, lookupCompanyProfile, renderPdf, modeBySeller } = deps;
 
   evacuateGeradosToHistorico(db, reportRoot, mode);
 
-  const genDeps: GenerateReportPdfsDeps = { reportRoot, generatedAt, lookupCompanyProfile, renderPdf };
+  const genDeps: GenerateReportPdfsDeps = { reportRoot, generatedAt, lookupCompanyProfile, renderPdf, modeBySeller };
   const result =
     mode === 'Previsao'
       ? await generatePrevisaoPdfs(parseResult as PrevisaoParseResult, genDeps)
@@ -105,18 +112,28 @@ export async function publishGeneratedDocuments(
       id: randomUUID(),
       batchId,
       mode,
-      branchCode: document.branchCode,
-      branchName: lookupCompanyProfile(document.branchCode)?.displayName ?? document.branchCode,
+      groupingMode: document.groupingMode,
       sellerCode: document.sellerCode,
       sellerName: document.sellerName,
       sourceRowCount: document.rowCount,
       commissionTotal: document.total,
       pdfPath: document.filePath,
       generatedAt: generatedAt.toISOString(),
-      templateVersion: TEMPLATE_VERSION
+      templateVersion: TEMPLATE_VERSION,
+      branches: document.branches.map((branch) => ({
+        branchCode: branch.branchCode,
+        branchName: branch.branchName,
+        rowCount: branch.rowCount,
+        subtotal: branch.subtotal
+      }))
     });
   }
   updateBatchOutputCount(db, batchId, result.generated.length);
+
+  // Remembered independently of any single `documents` row: deleting a document (even the
+  // only one a seller has) must never make a later regeneration forget that seller's mode.
+  const resolvedModeBySeller = new Map(result.generated.map((document) => [document.sellerCode, document.groupingMode]));
+  upsertBatchSellerGroupingModes(db, batchId, resolvedModeBySeller);
 
   return result;
 }
@@ -144,8 +161,9 @@ async function runBatchGenerationLocked(
   params: RunBatchGenerationParams,
   deps: RunBatchGenerationDeps
 ): Promise<GenerateReportResult> {
-  const { mode, batchId, sourcePath, sourceKind, workspaceFilePath } = params;
+  const { mode, batchId, sourcePath, sourceKind, workspaceFilePath, groupingChoices } = params;
   const { db, reportRoot, lookupCompanyProfile, appVersion, renderPdf } = deps;
+  const modeBySeller = new Map(Object.entries(groupingChoices ?? {}));
 
   const parseResult =
     mode === 'Previsao' ? await parsePrevisaoFile(workspaceFilePath) : await parseRelacaoFile(workspaceFilePath);
@@ -177,7 +195,8 @@ async function runBatchGenerationLocked(
       db,
       reportRoot,
       lookupCompanyProfile,
-      renderPdf
+      renderPdf,
+      modeBySeller
     });
 
     updateBatchStatus(db, batchId, 'archiving');

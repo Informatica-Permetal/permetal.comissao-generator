@@ -49,15 +49,15 @@ describe('evacuateGeradosToHistorico', () => {
       id: 'doc-1',
       batchId: 'batch-x',
       mode: 'Previsao',
-      branchCode: '0103',
-      branchName: 'PERMETAL SAO PAULO',
+      groupingMode: 'separate_by_branch',
       sellerCode: '000001',
       sellerName: 'ADEMIR FURLANETO',
       sourceRowCount: 1,
       commissionTotal: 'R$ 10,00',
       pdfPath: firstPdfPath,
       generatedAt: sameGeneratedAt,
-      templateVersion: '1'
+      templateVersion: '1',
+      branches: [{ branchCode: '0103', branchName: 'PERMETAL SAO PAULO', rowCount: 1, subtotal: 'R$ 10,00' }]
     });
 
     // Primeira evacuacao: move o PDF original para o Historico.
@@ -77,15 +77,15 @@ describe('evacuateGeradosToHistorico', () => {
       id: 'doc-2',
       batchId: 'batch-x',
       mode: 'Previsao',
-      branchCode: '0103',
-      branchName: 'PERMETAL SAO PAULO',
+      groupingMode: 'separate_by_branch',
       sellerCode: '000001',
       sellerName: 'ADEMIR FURLANETO',
       sourceRowCount: 1,
       commissionTotal: 'R$ 10,00',
       pdfPath: secondPdfPath,
       generatedAt: sameGeneratedAt,
-      templateVersion: '1'
+      templateVersion: '1',
+      branches: [{ branchCode: '0103', branchName: 'PERMETAL SAO PAULO', rowCount: 1, subtotal: 'R$ 10,00' }]
     });
 
     // Segunda evacuacao: deve mover o PDF novo SEM destruir o PDF historico ja arquivado.

@@ -108,9 +108,13 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
   }
 
   async function handleDeleteDocument(document: HistoryDocument): Promise<void> {
+    const branchesLabel =
+      document.groupingMode === 'consolidated_by_seller'
+        ? `filiais ${document.branches.map((branch) => branch.branchCode).join(', ')}`
+        : `filial ${document.branchCode}`;
     const confirmed = await confirm({
       title: 'Excluir documento',
-      message: `Excluir o PDF de ${document.sellerName} (${document.branchCode})? O arquivo será enviado para a lixeira.`,
+      message: `Excluir o PDF de ${document.sellerName} (${branchesLabel})? O arquivo será enviado para a lixeira.`,
       confirmLabel: 'Excluir'
     });
     if (!confirmed) return;
@@ -281,7 +285,21 @@ export default function HistoricoPage({ onBack }: HistoricoPageProps) {
               <tbody>
                 {group.documents.map((document) => (
                   <tr key={document.id}>
-                    <td>{document.branchCode}</td>
+                    <td>
+                      {document.groupingMode === 'consolidated_by_seller' ? (
+                        <>
+                          <span className="badge badge--consolidated">Consolidado</span>
+                          <div className="doc-branches-list">
+                            {document.branches.map((branch) => branch.branchCode).join(', ')}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span className="badge badge--separado">Separado</span>
+                          <div className="doc-branches-list">{document.branchCode}</div>
+                        </>
+                      )}
+                    </td>
                     <td>
                       {document.sellerName} ({document.sellerCode})
                     </td>

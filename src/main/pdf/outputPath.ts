@@ -30,6 +30,19 @@ export function buildPdfFileName(
   return `${datePart}_${modeLabel}_${branchPart}_${sellerCodePart}_${sellerNamePart}.pdf`;
 }
 
+export function buildConsolidatedPdfFileName(
+  mode: ReportMode,
+  generatedAt: Date,
+  sellerCode: string,
+  sellerName: string
+): string {
+  const datePart = generatedAt.toISOString().slice(0, 10);
+  const modeLabel = mode === 'Previsao' ? 'PREVISAO' : 'RELACAO';
+  const sellerNamePart = sanitizeFilenamePart(sellerName).toUpperCase();
+  const sellerCodePart = sanitizeFilenamePart(sellerCode);
+  return `${datePart}_${modeLabel}_CONSOLIDADO_${sellerCodePart}_${sellerNamePart}.pdf`;
+}
+
 export function resolveGeradosDir(reportRoot: string, mode: ReportMode): string {
   return resolveModeSubfolderPath(reportRoot, mode, 'Gerados');
 }

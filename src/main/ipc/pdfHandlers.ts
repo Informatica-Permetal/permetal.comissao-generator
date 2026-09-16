@@ -2,7 +2,7 @@ import { app, dialog, ipcMain, type BrowserWindow } from 'electron';
 import type { DatabaseSync } from 'node:sqlite';
 import { IPC_CHANNELS } from '@shared/contracts/ipc';
 import type { GenerateReportResult, PrintPdfResult } from '@shared/types/pdf';
-import type { BatchPreview } from '@shared/types/import';
+import type { BatchPreview, GroupingChoices } from '@shared/types/import';
 import { getCompanyProfile } from '../companies/companyProfileRepository';
 import { getReportRoot } from '../storage/settingsRepository';
 import { renderHtmlToPdf } from '../pdf/renderPdf';
@@ -32,7 +32,7 @@ export function registerPdfHandlers(deps: PdfHandlerDeps): void {
 
   ipcMain.handle(
     IPC_CHANNELS.reportsGeneratePdfs,
-    async (_event, preview: BatchPreview): Promise<GenerateReportResult> => {
+    async (_event, preview: BatchPreview, groupingChoices?: GroupingChoices): Promise<GenerateReportResult> => {
       const reportRoot = getReportRoot(db);
       if (!reportRoot) {
         throw new Error('Pasta raiz de relatórios ainda não configurada.');
@@ -46,7 +46,8 @@ export function registerPdfHandlers(deps: PdfHandlerDeps): void {
           batchId: preview.batchId,
           sourcePath: preview.sourcePath,
           sourceKind: preview.sourceKind,
-          workspaceFilePath: preview.workspaceFilePath
+          workspaceFilePath: preview.workspaceFilePath,
+          groupingChoices
         },
         {
           db,

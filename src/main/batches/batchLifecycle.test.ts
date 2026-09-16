@@ -62,8 +62,16 @@ const COMPANY_0103: CompanyProfile = {
   updatedAt: '2026-01-01T00:00:00.000Z'
 };
 
+const COMPANY_0104: CompanyProfile = { ...COMPANY_0103, branchCode: '0104', displayName: 'PERMETAL CRAVINHOS' };
+
 function lookupOnly0103(code: string): CompanyProfile | null {
   return code === '0103' ? COMPANY_0103 : null;
+}
+
+function lookup0103and0104(code: string): CompanyProfile | null {
+  if (code === '0103') return COMPANY_0103;
+  if (code === '0104') return COMPANY_0104;
+  return null;
 }
 
 let reportRoot: string;
@@ -82,8 +90,11 @@ afterEach(() => {
   removeFixtureDir(sourceDir);
 });
 
-function makeDeps(renderPdf: RunBatchGenerationDeps['renderPdf']): RunBatchGenerationDeps {
-  return { db, reportRoot, lookupCompanyProfile: lookupOnly0103, appVersion: '0.1.0-test', renderPdf };
+function makeDeps(
+  renderPdf: RunBatchGenerationDeps['renderPdf'],
+  lookupCompanyProfile: RunBatchGenerationDeps['lookupCompanyProfile'] = lookupOnly0103
+): RunBatchGenerationDeps {
+  return { db, reportRoot, lookupCompanyProfile, appVersion: '0.1.0-test', renderPdf };
 }
 
 /** Places a workspace copy exactly where importFile() would have left it, without re-running Fase 3 import. */
@@ -185,6 +196,64 @@ describe('runBatchGeneration - caminho feliz', () => {
     expect(getBatchById(db, 'batch-a')?.status).toBe('completed');
     expect(getBatchById(db, 'batch-b')?.status).toBe('completed');
   });
+});
+
+describe('runBatchGeneration - estrategia de agrupamento (Fase 5)', () => {
+  it('vendedor de filial unica sempre publica separado, mesmo sem groupingChoices', async () => {
+    const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
+    const sourcePath = await writeFixtureWorkbook(sourceDir, 'previsao.xlsx', PREVISAO_HEADERS, [previsaoRow()]);
+    const workspaceFilePath = seedWorkspaceCopy('Previsao', 'batch-single', sourcePath);
+
+    const result = await runBatchGeneration(
+      { mode: 'Previsao', batchId: 'batch-single', sourcePath, sourceKind: 'external', workspaceFilePath },
+      makeDeps(renderPdf)
+    );
+
+    expect(result.generated).toHaveLength(1);
+    expect(result.generated[0].groupingMode).toBe('separate_by_branch');
+    const documents = listDocumentsByBatch(db, 'batch-single');
+    expect(documents[0].groupingMode).toBe('separate_by_branch');
+    expect(documents[0].branches).toHaveLength(1);
+  });
+
+  it('vendedor multi-filial com escolha consolidado gera 1 PDF e 1 documento ligado a 2 filiais', async () => {
+    const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
+    const sourcePath = await writeFixtureWorkbook(sourceDir, 'previsao.xlsx', PREVISAO_HEADERS, [
+      previsaoRow({ 'Nome da filial': '0103 - PERMETAL SAO PAULO', 'Comissao total (liquido)': '10,00' }),
+      previsaoRow({ 'Nome da filial': '0104 - PERMETAL CRAVINHOS', 'Comissao total (liquido)': '20,00' })
+    ]);
+    const workspaceFilePath = seedWorkspaceCopy('Previsao', 'batch-consolidated', sourcePath);
+
+    const result = await runBatchGeneration(
+      {
+        mode: 'Previsao',
+        batchId: 'batch-consolidated',
+        sourcePath,
+        sourceKind: 'external',
+        workspaceFilePath,
+        groupingChoices: { '000009': 'consolidated_by_seller' }
+      },
+      makeDeps(renderPdf, lookup0103and0104)
+    );
+
+    expect(result.generated).toHaveLength(1);
+    expect(result.generated[0].groupingMode).toBe('consolidated_by_seller');
+    expect(result.generated[0].total).toBe('R$ 30,00');
+    expect(existsSync(result.generated[0].filePath)).toBe(true);
+    expect(basename(result.generated[0].filePath)).toContain('CONSOLIDADO');
+
+    const documents = listDocumentsByBatch(db, 'batch-consolidated');
+    expect(documents).toHaveLength(1);
+    expect(documents[0].groupingMode).toBe('consolidated_by_seller');
+    expect(documents[0].branches).toHaveLength(2);
+    expect(documents[0].branches.map((b) => b.branchCode)).toEqual(['0103', '0104']);
+    expect(documents[0].commissionTotal).toBe('R$ 30,00');
+
+    const batch = getBatchById(db, 'batch-consolidated');
+    // 1 documento publicado (nao 2), mesmo com 2 filiais envolvidas.
+    expect(batch?.outputCount).toBe(1);
+  });
+
 });
 
 describe('runBatchGeneration - filial nao configurada', () => {

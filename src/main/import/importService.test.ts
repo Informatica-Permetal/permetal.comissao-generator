@@ -305,6 +305,42 @@ describe('importFile - varios vendedores e varias filiais', () => {
     expect(result.preview.sellerCount).toBe(2);
     expect(result.preview.branchCount).toBe(2);
     expect(result.preview.documents).toHaveLength(3); // 000001+0103, 000002+0103, 000001+0104
+    // 000001 aparece em 0103 e 0104 - e detectado como multi-filial; 000002 (uma so filial) nao.
+    expect(result.preview.multiBranchSellers).toEqual([
+      { sellerCode: '000001', sellerName: 'VENDEDOR UM', branchCodes: ['0103', '0104'] }
+    ]);
+  });
+});
+
+describe('importFile - vendedores multi-filial (Fase 5)', () => {
+  it('preview.multiBranchSellers fica vazio quando nenhum vendedor tem mais de uma filial', async () => {
+    const sourcePath = await writeFixtureWorkbook(sourceDir, 'previsao.xlsx', PREVISAO_HEADERS, [previsaoRow()]);
+    const result = await importFile(
+      { mode: 'Previsao', sourcePath, sourceKind: 'external' },
+      { db, reportRoot, lookupCompanyProfile: lookupOnly0103 }
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.preview.multiBranchSellers).toEqual([]);
+  });
+
+  it('detecta varios vendedores multi-filial ao mesmo tempo, cada um com sua propria lista de filiais', async () => {
+    const sourcePath = await writeFixtureWorkbook(sourceDir, 'relacao.xlsx', RELACAO_HEADERS, [
+      relacaoRow({ 'Codigo do Vendedor': '000097', 'Nome do Vendedor': 'RODRIGO LEAL MIGNELLA', 'Filial do Sistema': '0103' }),
+      relacaoRow({ 'Codigo do Vendedor': '000097', 'Nome do Vendedor': 'RODRIGO LEAL MIGNELLA', 'Filial do Sistema': '0104' }),
+      relacaoRow({ 'Codigo do Vendedor': '000097', 'Nome do Vendedor': 'RODRIGO LEAL MIGNELLA', 'Filial do Sistema': '0105' }),
+      relacaoRow({ 'Codigo do Vendedor': '000044', 'Nome do Vendedor': 'DANIEL OLIVEIRA', 'Filial do Sistema': '0103' }),
+      relacaoRow({ 'Codigo do Vendedor': '000044', 'Nome do Vendedor': 'DANIEL OLIVEIRA', 'Filial do Sistema': '0104' })
+    ]);
+    const result = await importFile(
+      { mode: 'Relacao', sourcePath, sourceKind: 'external' },
+      { db, reportRoot, lookupCompanyProfile: () => COMPANY_0103 }
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.preview.multiBranchSellers).toHaveLength(2);
+    const rodrigo = result.preview.multiBranchSellers.find((s) => s.sellerCode === '000097');
+    expect(rodrigo?.branchCodes).toEqual(['0103', '0104', '0105']);
   });
 });
 

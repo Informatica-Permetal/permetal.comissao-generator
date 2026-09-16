@@ -176,6 +176,52 @@ export const BASE_CSS = `
     margin-top: 2px;
   }
 
+  /* ---------- Consolidated (multi-branch) sections - Fase 5: model/UX/persistence only, finishing later ---------- */
+  .branch-section {
+    margin-top: 22px;
+    break-inside: avoid-page;
+  }
+  .branch-section + .branch-section {
+    border-top: 2px dashed #ccc;
+    padding-top: 18px;
+  }
+  .branch-section__heading {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: #555;
+    margin: 0 0 8px;
+  }
+  .subtotal-block {
+    display: flex;
+    justify-content: flex-end;
+    margin: 8px 0 0;
+  }
+  .subtotal-block__inner {
+    text-align: right;
+    background: #eaecee;
+    color: #1a1a1a;
+    padding: 6px 14px;
+    border-radius: 5px;
+    min-width: 170px;
+  }
+  .subtotal-block__label {
+    font-size: 7.8px;
+    letter-spacing: 0.6px;
+    color: #666;
+    text-transform: uppercase;
+  }
+  .subtotal-block__value {
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 1px;
+  }
+  .consolidated-branches-list {
+    font-size: 8.5px;
+    color: #666;
+  }
+
   /* ---------- Signature ---------- */
   .signature {
     margin-top: 34px;

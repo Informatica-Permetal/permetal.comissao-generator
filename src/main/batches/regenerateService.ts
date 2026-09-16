@@ -7,6 +7,7 @@ import { parsePrevisaoFile } from '../reports/previsao/parser';
 import { parseRelacaoFile } from '../reports/relacao/parser';
 import { getBatchById } from '../storage/batchRepository';
 import { getDocumentById } from '../storage/documentRepository';
+import { getBatchSellerGroupingModes } from '../storage/batchSellerGroupingRepository';
 import type { RenderPdfOptions } from '../pdf/renderPdf';
 import { log } from '../app/logger';
 import { publishGeneratedDocuments } from './batchLifecycle';
@@ -70,11 +71,15 @@ async function regenerateBatchLocked(batchId: string, deps: RegenerateDeps): Pro
     }
 
     const generatedAt = new Date();
+    // Read from the batch-level record, not from whatever `documents` rows happen to still
+    // exist - so deleting a seller's only document never erases the memory of its mode.
+    const modeBySeller = getBatchSellerGroupingModes(db, batch.id);
     const result = await publishGeneratedDocuments(batch.mode, batch.id, parseResult, generatedAt, {
       db,
       reportRoot,
       lookupCompanyProfile,
-      renderPdf
+      renderPdf,
+      modeBySeller
     });
 
     log('info', 'batch regenerated', { batchId, mode: batch.mode, outputCount: result.generated.length });

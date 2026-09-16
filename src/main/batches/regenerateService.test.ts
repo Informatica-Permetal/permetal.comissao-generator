@@ -9,7 +9,7 @@ import { listDocumentsByBatch } from '../storage/documentRepository';
 import { resolveGeradosDir } from '../pdf/outputPath';
 import { createFixtureDir, removeFixtureDir, writeFixtureWorkbook } from '../reports/testSupport/xlsxFixtures';
 import { runBatchGeneration, type RunBatchGenerationDeps } from './batchLifecycle';
-import { deleteBatch, type DeleteDeps } from './deleteService';
+import { deleteBatch, deleteDocument, type DeleteDeps } from './deleteService';
 import { regenerateBatch, regenerateDocument, type RegenerateDeps } from './regenerateService';
 
 const FAKE_PDF_BUFFER = Buffer.from('%PDF-1.7 fake');
@@ -62,6 +62,8 @@ const COMPANY_0103: CompanyProfile = {
   updatedAt: '2026-01-01T00:00:00.000Z'
 };
 
+const COMPANY_0104: CompanyProfile = { ...COMPANY_0103, branchCode: '0104', displayName: 'PERMETAL CRAVINHOS' };
+
 let reportRoot: string;
 let sourceDir: string;
 let db: DatabaseSync;
@@ -96,6 +98,70 @@ async function seedCompletedBatch(batchId: string): Promise<void> {
   };
   await runBatchGeneration(
     { mode: 'Previsao', batchId, sourcePath, sourceKind: 'external', workspaceFilePath },
+    genDeps
+  );
+}
+
+async function seedCompletedConsolidatedBatch(batchId: string): Promise<void> {
+  lookupCompanyProfile = (code) => (code === '0103' ? COMPANY_0103 : code === '0104' ? COMPANY_0104 : null);
+  const sourcePath = await writeFixtureWorkbook(sourceDir, `${batchId}.xlsx`, PREVISAO_HEADERS, [
+    previsaoRow({ 'Dados do vendedor': '000097 - RODRIGO LEAL MIGNELLA', 'Nome da filial': '0103 - PERMETAL SAO PAULO' }),
+    previsaoRow({ 'Dados do vendedor': '000097 - RODRIGO LEAL MIGNELLA', 'Nome da filial': '0104 - PERMETAL CRAVINHOS' })
+  ]);
+  const workspaceDir = join(reportRoot, 'Previsão', 'Processamento', batchId);
+  mkdirSync(workspaceDir, { recursive: true });
+  const workspaceFilePath = join(workspaceDir, 'previsao.xlsx');
+  writeFileSync(workspaceFilePath, readFileSync(sourcePath));
+
+  const genDeps: RunBatchGenerationDeps = {
+    db,
+    reportRoot,
+    lookupCompanyProfile,
+    appVersion: '0.1.0-test',
+    renderPdf: vi.fn().mockResolvedValue(FAKE_PDF_BUFFER)
+  };
+  await runBatchGeneration(
+    {
+      mode: 'Previsao',
+      batchId,
+      sourcePath,
+      sourceKind: 'external',
+      workspaceFilePath,
+      groupingChoices: { '000097': 'consolidated_by_seller' }
+    },
+    genDeps
+  );
+}
+
+async function seedMixedModeBatch(batchId: string): Promise<void> {
+  lookupCompanyProfile = (code) => (code === '0103' ? COMPANY_0103 : code === '0104' ? COMPANY_0104 : null);
+  const sourcePath = await writeFixtureWorkbook(sourceDir, `${batchId}.xlsx`, PREVISAO_HEADERS, [
+    previsaoRow({ 'Dados do vendedor': '000097 - RODRIGO LEAL MIGNELLA', 'Nome da filial': '0103 - PERMETAL SAO PAULO' }),
+    previsaoRow({ 'Dados do vendedor': '000097 - RODRIGO LEAL MIGNELLA', 'Nome da filial': '0104 - PERMETAL CRAVINHOS' }),
+    previsaoRow({ 'Dados do vendedor': '000001 - OUTRO VENDEDOR', 'Nome da filial': '0103 - PERMETAL SAO PAULO' })
+  ]);
+  const workspaceDir = join(reportRoot, 'Previsão', 'Processamento', batchId);
+  mkdirSync(workspaceDir, { recursive: true });
+  const workspaceFilePath = join(workspaceDir, 'previsao.xlsx');
+  writeFileSync(workspaceFilePath, readFileSync(sourcePath));
+
+  const genDeps: RunBatchGenerationDeps = {
+    db,
+    reportRoot,
+    lookupCompanyProfile,
+    appVersion: '0.1.0-test',
+    renderPdf: vi.fn().mockResolvedValue(FAKE_PDF_BUFFER)
+  };
+  await runBatchGeneration(
+    {
+      mode: 'Previsao',
+      batchId,
+      sourcePath,
+      sourceKind: 'external',
+      workspaceFilePath,
+      // seller 000001 has a single branch, so it is always separado regardless of this map.
+      groupingChoices: { '000097': 'consolidated_by_seller' }
+    },
     genDeps
   );
 }
@@ -214,6 +280,68 @@ describe('regenerateBatch - concorrencia', () => {
     const geradosDir = resolveGeradosDir(reportRoot, 'Previsao');
     const leftoverInGerados = existsSync(geradosDir) ? readdirSync(geradosDir) : [];
     expect(leftoverInGerados).toHaveLength(0);
+  });
+});
+
+describe('regenerateBatch - preserva o modo de agrupamento original (Fase 5)', () => {
+  it('regenerar um lote consolidado nunca pede escolha de novo e mantem consolidado', async () => {
+    await seedCompletedConsolidatedBatch('batch-regen-consolidated');
+    const before = listDocumentsByBatch(db, 'batch-regen-consolidated');
+    expect(before[0].groupingMode).toBe('consolidated_by_seller');
+
+    const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
+    const result = await regenerateBatch('batch-regen-consolidated', regenDeps(renderPdf));
+
+    expect(result).toEqual({ ok: true, generatedCount: 1 });
+    const after = listDocumentsByBatch(db, 'batch-regen-consolidated');
+    const newDoc = after.find((d) => !before.some((b) => b.id === d.id))!;
+    expect(newDoc.groupingMode).toBe('consolidated_by_seller');
+    expect(newDoc.branches).toHaveLength(2);
+    expect(newDoc.branches.map((b) => b.branchCode)).toEqual(['0103', '0104']);
+  });
+
+  it('regenerar um lote com escolha mista preserva o modo de CADA vendedor de forma independente', async () => {
+    await seedMixedModeBatch('batch-regen-mixed');
+    const before = listDocumentsByBatch(db, 'batch-regen-mixed');
+    const consolidatedBefore = before.find((d) => d.sellerCode === '000097')!;
+    const separateBefore = before.find((d) => d.sellerCode === '000001')!;
+    expect(consolidatedBefore.groupingMode).toBe('consolidated_by_seller');
+    expect(separateBefore.groupingMode).toBe('separate_by_branch');
+
+    const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
+    const result = await regenerateBatch('batch-regen-mixed', regenDeps(renderPdf));
+
+    expect(result).toEqual({ ok: true, generatedCount: 2 });
+    const after = listDocumentsByBatch(db, 'batch-regen-mixed');
+    const newConsolidated = after.find((d) => d.sellerCode === '000097' && !before.some((b) => b.id === d.id))!;
+    const newSeparate = after.find((d) => d.sellerCode === '000001' && !before.some((b) => b.id === d.id))!;
+    expect(newConsolidated.groupingMode).toBe('consolidated_by_seller');
+    expect(newConsolidated.branches).toHaveLength(2);
+    expect(newSeparate.groupingMode).toBe('separate_by_branch');
+    expect(newSeparate.branches).toHaveLength(1);
+  });
+
+  it('excluir o UNICO documento de um vendedor consolidado e depois regenerar preserva o modo consolidado (nao volta a separado)', async () => {
+    await seedCompletedConsolidatedBatch('batch-delete-then-regen');
+    const [onlyDocument] = listDocumentsByBatch(db, 'batch-delete-then-regen');
+    expect(onlyDocument.groupingMode).toBe('consolidated_by_seller');
+
+    const trashed: string[] = [];
+    const deleteDeps: DeleteDeps = { db, trashItem: async (path) => { trashed.push(path); rmSync(path, { force: true }); } };
+    const deleteResult = await deleteDocument(onlyDocument.id, deleteDeps);
+    expect(deleteResult.ok).toBe(true);
+    // The seller now has ZERO documents in the batch - the only place its original choice
+    // could possibly still be known is the batch-level record, not any `documents` row.
+    expect(listDocumentsByBatch(db, 'batch-delete-then-regen')).toHaveLength(0);
+
+    const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
+    const result = await regenerateBatch('batch-delete-then-regen', regenDeps(renderPdf));
+
+    expect(result).toEqual({ ok: true, generatedCount: 1 });
+    const regenerated = listDocumentsByBatch(db, 'batch-delete-then-regen');
+    expect(regenerated).toHaveLength(1);
+    expect(regenerated[0].groupingMode).toBe('consolidated_by_seller');
+    expect(regenerated[0].branches).toHaveLength(2);
   });
 });
 

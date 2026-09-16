@@ -1,4 +1,5 @@
 import type { ReportMode } from '../constants/folders';
+import type { GroupingMode } from './history';
 
 export type SourceKind = 'entrada' | 'external';
 
@@ -16,6 +17,13 @@ export interface BatchPreviewDocument {
   total: string;
 }
 
+/** A seller with rows in more than one branch within this same import - triggers the separado/consolidado choice. */
+export interface MultiBranchSeller {
+  sellerCode: string;
+  sellerName: string;
+  branchCodes: string[];
+}
+
 export interface BatchPreview {
   batchId: string;
   mode: ReportMode;
@@ -29,10 +37,15 @@ export interface BatchPreview {
   sellerCount: number;
   branchCount: number;
   documents: BatchPreviewDocument[];
+  /** Empty when no seller in this import spans more than one branch. */
+  multiBranchSellers: MultiBranchSeller[];
   warnings: string[];
   missingBranchCodes: string[];
   previouslyProcessedAt: string | null;
 }
+
+/** User's grouping choice per multi-branch seller code; a seller absent from this map defaults to `separate_by_branch`. */
+export type GroupingChoices = Record<string, GroupingMode>;
 
 export type ImportServiceError =
   | { kind: 'unsupportedFileType'; message: string }

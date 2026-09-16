@@ -59,3 +59,49 @@ export interface RelacaoPdfViewModel {
   rowCount: number;
   total: string;
 }
+
+/**
+ * A consolidated PDF's identity is deliberately NOT `PdfDocumentIdentity` -
+ * it has no single branch. Not polished (visual finishing is a later
+ * phase); this is the minimal correct shape: one seller, several branch
+ * sections, each keeping its own (never-recalculated) subtotal.
+ */
+export interface ConsolidatedPdfIdentity {
+  mode: 'Previsao' | 'Relacao';
+  sellerCode: string;
+  sellerName: string;
+  branchCodes: string[];
+  generatedAt: Date;
+}
+
+export interface PrevisaoConsolidatedBranchSection {
+  branchCode: string;
+  branchName: string;
+  company: PdfCompanyInfo;
+  sections: PrevisaoPdfSection[];
+  rowCount: number;
+  subtotal: string;
+}
+
+export interface PrevisaoConsolidatedPdfViewModel {
+  identity: ConsolidatedPdfIdentity;
+  branches: PrevisaoConsolidatedBranchSection[];
+  rowCount: number;
+  total: string;
+}
+
+export interface RelacaoConsolidatedBranchSection {
+  branchCode: string;
+  branchName: string;
+  company: PdfCompanyInfo;
+  rows: RelacaoPdfRow[];
+  rowCount: number;
+  subtotal: string;
+}
+
+export interface RelacaoConsolidatedPdfViewModel {
+  identity: ConsolidatedPdfIdentity;
+  branches: RelacaoConsolidatedBranchSection[];
+  rowCount: number;
+  total: string;
+}

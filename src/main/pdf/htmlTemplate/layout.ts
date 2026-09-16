@@ -1,7 +1,7 @@
 import { embedImageAsDataUri } from '../embedImage';
 import { escapeHtml } from '../format';
 import { buildPerforatedMetalMotif } from './perforatedMetal';
-import type { PdfCompanyInfo, PdfDocumentIdentity } from '../types';
+import type { ConsolidatedPdfIdentity, PdfCompanyInfo, PdfDocumentIdentity } from '../types';
 
 /**
  * Brand letterhead (logo + brand/legal identity) plus a decorative industrial
@@ -90,6 +90,64 @@ export function buildTotalBlockHtml(label: string, value: string): string {
         <div class="total-block__label">${escapeHtml(label)}</div>
         <div class="total-block__value">${escapeHtml(value)}</div>
       </div>
+    </div>
+  `;
+}
+
+/**
+ * The consolidated equivalent of `buildDocumentMetaHtml` - one seller, no
+ * single branch (`branchCodes` lists every branch included). Not polished
+ * (visual finishing is a later phase); this is the minimal correct
+ * identity block for a multi-branch document.
+ */
+export function buildConsolidatedMetaHtml(identity: ConsolidatedPdfIdentity, generatedAtLabel: string): string {
+  return `
+    <section class="doc-meta">
+      <div class="doc-meta__item">
+        <p class="doc-meta__label">Vendedor</p>
+        <p class="doc-meta__value">${escapeHtml(identity.sellerName || '-')}</p>
+        <p class="doc-meta__sub">Código ${escapeHtml(identity.sellerCode)}</p>
+      </div>
+      <div class="doc-meta__item">
+        <p class="doc-meta__label">Filiais incluídas</p>
+        <p class="consolidated-branches-list">${escapeHtml(identity.branchCodes.join(', '))}</p>
+      </div>
+      <div class="doc-meta__item">
+        <p class="doc-meta__label">Data de Geração</p>
+        <p class="doc-meta__value">${escapeHtml(generatedAtLabel)}</p>
+      </div>
+    </section>
+  `;
+}
+
+/** Heading that separates each branch's own section inside a consolidated document. */
+export function buildBranchSectionHeadingHtml(branchCode: string, branchName: string): string {
+  return `<p class="branch-section__heading">Filial ${escapeHtml(branchCode)} - ${escapeHtml(branchName)}</p>`;
+}
+
+export function buildSubtotalBlockHtml(label: string, value: string): string {
+  return `
+    <div class="subtotal-block">
+      <div class="subtotal-block__inner">
+        <div class="subtotal-block__label">${escapeHtml(label)}</div>
+        <div class="subtotal-block__value">${escapeHtml(value)}</div>
+      </div>
+    </div>
+  `;
+}
+
+/** Running header for a consolidated document - shows the seller and "Consolidado", never a single branch code. */
+export function buildConsolidatedPrintHeaderTemplate(
+  company: PdfCompanyInfo,
+  modeTitle: string,
+  identity: ConsolidatedPdfIdentity
+): string {
+  const brandName = company.legalName ?? company.brandLabel ?? company.displayName;
+  return `
+    <div style="font-size:7px; width:100%; padding:0 24px 3px; display:flex; justify-content:space-between;
+                color:#9a9a9a; font-family:Arial,sans-serif; border-bottom:0.5px solid #d8d8d8;">
+      <span>${escapeHtml(brandName)} - ${escapeHtml(modeTitle)}</span>
+      <span>Vend. ${escapeHtml(identity.sellerCode)} - Consolidado (${identity.branchCodes.length} filiais)</span>
     </div>
   `;
 }

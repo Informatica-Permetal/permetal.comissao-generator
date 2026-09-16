@@ -1152,3 +1152,88 @@ Não alteradas. Nenhum arquivo de `reports/`, `pdf/` (cálculo/agrupamento) ou v
 - Não há UI para criar/editar grupos diretamente (apenas seed automático dos 2 grupos reais e um seletor de grupo existente ao adicionar filial) - CRUD de grupo em si não foi pedido nesta fase.
 
 **PARADO conforme instruído.**
+
+## FASE 5 - Estratégia de geração: separado por filial vs. consolidado por vendedor (CONCLUÍDA)
+
+Hoje o app gera um PDF por par (vendedor + filial). Esta fase adiciona uma segunda estratégia opcional - um único PDF consolidado por vendedor quando o mesmo vendedor tem registros em mais de uma filial - preservando o comportamento separado como padrão. Conforme instruído, o foco desta fase é **modelo, UX de escolha e persistência**; o acabamento visual do PDF consolidado é funcional, não polido (fica para uma fase futura).
+
+### Modelo de dados (migração normalizada e seedgura)
+
+- `src/main/storage/database.ts` - dois novos `MIGRATIONS` (índices 2 e 3), puramente aditivos:
+  - **Índice 2**: `documents.grouping_mode` (`ALTER TABLE ... ADD COLUMN ... DEFAULT 'separate_by_branch'`) + nova tabela `document_branches` (`document_id` com `ON DELETE CASCADE`, `branch_code`, `branch_name`, `position`, `row_count`, `subtotal`, chave primária `(document_id, branch_code)`) + backfill que cria, para cada documento já existente, exatamente uma linha em `document_branches` a partir dos próprios dados antigos (`COALESCE` para `source_row_count`/`commission_total`, cobrindo o caso real de colunas `NULL` em histórico antigo).
+  - **Índice 3**: nova tabela `batch_seller_grouping` (`batch_id` com `ON DELETE CASCADE`, `seller_code`, `grouping_mode`, chave primária `(batch_id, seller_code)`) - ver "Bug crítico encontrado e corrigido" abaixo.
+  - `runMigrations` agora executa o SQL de cada migração **e** o bump de `PRAGMA user_version` dentro de uma única transação (`BEGIN`/`COMMIT`, com `ROLLBACK` em caso de erro) - se o processo for interrompido no meio de uma migração, o banco fica ou na versão antiga (nada aplicado) ou na nova (tudo aplicado), nunca num estado parcial que travaria toda futura inicialização. `openDatabase` fecha a conexão antes de propagar o erro, evitando vazamento de handle.
+- `src/main/storage/documentRepository.ts` - `documents.branch_code` continua sendo a filial primária (a primeira), mas **nunca** é a fonte de verdade para um documento consolidado: `document_branches` é sempre a lista completa e autoritativa. `insertDocument` grava a linha `documents` e todas as suas `document_branches` numa única transação (tudo ou nada). `countDocumentsForBranch` e o filtro de filial em `listDocuments` agora consultam `document_branches`, então um documento consolidado é encontrado e contado por **qualquer** uma de suas filiais, não só a primária - isso mantém correto o bloqueio de exclusão de filial (`companyProfileService.ts`, inalterado) mesmo quando a filial em risco é a 2ª ou 3ª de um documento consolidado.
+- `src/main/storage/batchSellerGroupingRepository.ts` (novo) - ver seção do bug crítico.
+- `src/main/reports/common/grouping.ts` - novas funções puras, nunca recalculam nada, apenas reorganizam totais já computados: `findMultiBranchSellers` (identifica vendedores com 2+ filiais, usado no preview), `resolvePublishUnits` (aplica a escolha do usuário: uma unidade por filial para o modo separado, uma única unidade mesclada - com subtotal por filial preservado - para o consolidado), `isSeparateUnit`/`isConsolidatedUnit` (type guards).
+
+### Geração de PDF consolidado (funcional, sem polimento visual)
+
+- `src/main/pdf/consolidatedViewModel.ts` (novo) - `buildPrevisaoConsolidatedViewModel`/`buildRelacaoConsolidatedViewModel`: para cada filial, resolve a empresa/logo daquela filial especificamente (nunca assume que todas as filiais compartilham a mesma empresa).
+- `src/main/pdf/htmlTemplate/consolidatedTemplate.ts` (novo) - renderiza uma seção por filial (cabeçalho "Filial XXXX - Nome", tabela de linhas daquela filial, subtotal daquela filial) uma após a outra no mesmo documento, seguidas de um total consolidado único no fim. Reaproveita os blocos de layout já existentes (`buildDocumentHeaderHtml`, `buildTotalBlockHtml`, `buildSignatureBlockHtml`); novos blocos pequenos em `layout.ts` (`buildConsolidatedMetaHtml`, `buildBranchSectionHeadingHtml`, `buildSubtotalBlockHtml`, `buildConsolidatedPrintHeaderTemplate`).
+- `src/main/pdf/generateReportPdfs.ts` - reescrito para, a partir de `resolvePublishUnits`, gerar as unidades separadas pelo caminho já existente (inalterado) e as consolidadas por um novo caminho paralelo; ambos usam a mesma verificação de filial não configurada e a mesma serialização por modo de sempre.
+- `src/main/pdf/outputPath.ts` - nova `buildConsolidatedPdfFileName`: `<data>_<MODO>_CONSOLIDADO_<codigoVendedor>_<NOME_VENDEDOR>.pdf` (ex.: `2026-09-15_RELACAO_CONSOLIDADO_000097_RODRIGO_LEAL_MIGNELLA.pdf`, exatamente o padrão pedido). Nome do modo separado permanece **idêntico** ao de antes desta fase.
+
+### Totais - nunca recalculados
+
+Confirmado por teste e por revisão adversarial (ver abaixo): a Previsão soma somente `Comissao total (liquido)` e a Relação soma somente `Valor da Comissao`, em ambos os modos. No consolidado, cada filial mantém seu próprio subtotal exatamente como seria no modo separado; o total do documento é a soma `Decimal` desses subtotais - nunca uma nova soma das linhas brutas, nunca uma string reformatada. Linhas duplicadas continuam contribuindo cada uma com seu próprio valor, mesmo depois de consolidadas entre filiais.
+
+### Preview e escolha do usuário
+
+- `src/shared/types/import.ts` - `BatchPreview.multiBranchSellers: MultiBranchSeller[]` (vazio quando nenhum vendedor está em mais de uma filial); novo `GroupingChoices = Record<sellerCode, GroupingMode>`.
+- `src/renderer/src/components/ImportPage.tsx` - `PreviewSummary` ganha um painel exibido apenas quando há vendedores multi-filial: mensagem "Este vendedor possui registros em mais de uma filial." (ou a versão plural), um par de rádios por vendedor ("Gerar separado por filial", marcado por padrão / "Gerar consolidado por vendedor"), e um botão "Aplicar esta escolha a todos" por vendedor (visível só quando há mais de um vendedor multi-filial) que copia a escolha atual daquele vendedor para todos os outros, mantendo a escolha individual de cada um ainda editável depois. `GeneratedResults` mostra o badge "Separado"/"Consolidado" e a lista de filiais de cada documento recém-gerado.
+
+### Histórico
+
+`src/renderer/src/pages/HistoricoPage.tsx` - a coluna Filial agora mostra sempre um badge ("Separado" ou "Consolidado") e, no consolidado, a lista de filiais incluídas em vez de um único código. Mensagem de confirmação de exclusão também lista todas as filiais quando o documento é consolidado. `src/renderer/src/pages/HomePage.tsx` (documentos recentes) ajustado da mesma forma.
+
+### Regeneração preserva o modo original
+
+`src/main/batches/regenerateService.ts` nunca pergunta de novo nem infere o modo - lê o modo de cada vendedor de uma fonte persistida (ver bug crítico abaixo) antes de re-publicar. Um lote com escolha mista (alguns vendedores separado, outros consolidado) regenera cada vendedor no seu próprio modo original. Nenhuma ação de "regenerar com outro agrupamento" foi implementada - não foi pedido como obrigatório nesta fase ("se permitir mudança..."), e trocar o modo de um documento já publicado é uma decisão de UX de fase futura.
+
+### Exclusão
+
+Excluir um documento consolidado nunca apaga a fonte XLSX arquivada do lote (mesma garantia já existente para documentos separados) e cascata automaticamente suas linhas em `document_branches` (via `ON DELETE CASCADE`, sem código extra necessário).
+
+### Bug crítico encontrado pela revisão adversarial e corrigido
+
+Depois de implementar e validar manualmente a feature, foi executada uma revisão adversarial em 5 dimensões (compliance com a especificação, invariantes financeiras, segurança de migração, segurança de exclusão/regeneração, consistência de integração) com verificação independente de cada achado. Duas dimensões, de forma independente, encontraram e **reproduziram com um teste real** o mesmo bug de alta severidade:
+
+> Se o único documento de um vendedor consolidado for excluído do Histórico e o lote for regenerado depois, o modo original era perdido silenciosamente - a regeneração recriava o vendedor como separado por filial, sem nenhum aviso. Causa: o modo era lido de volta a partir das próprias linhas de `documents` restantes; ao excluir a única linha, não sobrava nenhum registro de qual modo aquele vendedor tinha escolhido.
+
+Corrigido criando `src/main/storage/batchSellerGroupingRepository.ts` e a tabela `batch_seller_grouping` (migração índice 3): o modo de cada vendedor é gravado ali **uma vez por publicação** (tanto na geração inicial quanto em cada regeneração), independente de qualquer linha `documents` específica, e só é removido quando o **lote inteiro** é excluído (cascade). `regenerateService.ts` agora lê de lá em vez de inspecionar `documents`. Teste de regressão adicionado em `regenerateService.test.ts` reproduzindo exatamente esse cenário (excluir o único documento → regenerar → confirma que o modo consolidado é preservado).
+
+A mesma revisão encontrou e corrigiu mais dois problemas reais, ambos de segurança de dados (não de comportamento visível):
+- Migração e `insertDocument` não eram atômicos (múltiplos `db.exec` sem transação) - uma interrupção no meio podia deixar o banco num estado parcial que travaria a próxima inicialização, ou um documento consolidado com só parte de suas filiais gravadas. Ambos agora usam `BEGIN`/`COMMIT`/`ROLLBACK` explícitos. Testes de regressão adicionados simulando exatamente a falha no meio (`database.test.ts`, `documentRepository.test.ts`).
+- Gap de cobertura: o teste de migração histórica só usava dados sem `NULL`; adicionado teste cobrindo `branch_name`/`source_row_count`/`commission_total` nulos no documento legado.
+
+Um achado de severidade baixa (duas interfaces estruturalmente idênticas mas independentes - `GeneratedPdf` interno e `GeneratedPdfInfo` compartilhado - sem conversão explícita) foi confirmado como real, mas é um padrão já pré-existente no restante do código (não introduzido só aqui) e não foi alterado nesta fase, para não redesenhar uma convenção estabelecida sem necessidade.
+
+### Validação real (dados reais, não só sintéticos)
+
+Usando os arquivos reais anexados (`Relação de Comissões(Campos Novos).xlsx`, 1374 linhas, 27 vendedores, **8 multi-filial** - confirmado por inspeção direta do arquivo) via o app real (`npx electron out/main/index.js`), com o watcher de Entrada detectando o arquivo de verdade:
+
+- Preview real mostrou corretamente "8 vendedores possuem registros em mais de uma filial", cada um com sua lista exata de filiais e valores reais do Protheus.
+- Gerar os 38 documentos completos do arquivo real de 1374 linhas apresentou uma falha de impressão do Chromium (`Printing failed`) - isolada e confirmada como **limitação do ambiente sandbox** (não uma regressão desta fase): o mesmo cenário reduzido a um caso pequeno e realista (vendedor real 000097 - RODRIGO LEAL MIGNELLA - consolidando suas 3 filiais reais 0103/0104/0105, mais outro vendedor separado) gerou com sucesso via `printToPDF` real, produzindo os dois PDFs esperados (`..._CONSOLIDADO_000097_RODRIGO_LEAL_MIGNELLA.pdf` e o separado), com o total consolidado real (R$ 35,00 = 10+20+5) exatamente correto, badges corretos em Relação e em Histórico, e o PDF consolidado inspecionado diretamente (letterhead por filial, subtotal por filial, total consolidado no fim, cabeçalho/rodapé de impressão mostrando "Consolidado (3 filiais)").
+
+### Testes automatizados
+
+Novos/estendidos: `src/main/reports/common/grouping.test.ts` (novo), `src/main/storage/documentRepository.test.ts` (novo), `src/main/storage/batchSellerGroupingRepository.test.ts` (novo), `src/main/pdf/outputPath.test.ts`, `src/main/pdf/generateReportPdfs.test.ts`, `src/main/storage/database.test.ts`, `src/main/batches/batchLifecycle.test.ts`, `src/main/batches/regenerateService.test.ts`, `src/main/batches/deleteService.test.ts`, `src/main/import/importService.test.ts`. Cobrem: vendedor de filial única (inalterado), vendedor de 2 filiais, vários vendedores multi-filial simultâneos, escolha mista no mesmo lote, Relação e Previsão, badge/filiais no Histórico, regeneração preservando modo (incluindo lote misto e o cenário exclusão-então-regeneração do bug crítico), migração (banco novo, banco existente com histórico real, valores `NULL`, falha atômica no meio), totais nunca recalculados, e linhas duplicadas.
+
+### Testes técnicos
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK |
+| `npm run lint` | OK - 0 erros, 2 avisos pré-existentes inalterados |
+| `npm run test` | OK - **254/254** testes (44 novos) |
+| `npm run build` | OK |
+
+### Pendências / observações
+
+- `npm run dist` não foi regenerado (mudança não afeta o instalador em si).
+- Acabamento visual do PDF consolidado (design, tipografia, layout mais refinado) é explicitamente uma fase futura, conforme instruído - o que existe hoje é funcional e correto, não decorado.
+- Nenhuma ação "Gerar novamente com outro agrupamento" foi criada - não é obrigatória pela instrução ("se permitir mudança..."), e mudar o modo de um documento já publicado é uma decisão de UX melhor deixada para quando o acabamento visual do consolidado também for definido.
+- O achado de baixa severidade sobre tipagem estrutural entre `GeneratedPdf`/`GeneratedPdfInfo` (documentado acima) foi conscientemente deixado como está, por ser um padrão já usado em outras partes do código.
+
+**PARADO conforme instruído.**

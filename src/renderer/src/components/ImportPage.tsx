@@ -11,11 +11,13 @@ import {
   Printer,
   FolderOutput,
   RefreshCw,
+  Users,
   X,
   Settings as SettingsIcon
 } from 'lucide-react';
 import type { ReportMode } from '@shared/constants/folders';
-import type { BatchPreview, ImportServiceError, SourceKind } from '@shared/types/import';
+import type { BatchPreview, GroupingChoices, ImportServiceError, SourceKind } from '@shared/types/import';
+import type { GroupingMode } from '@shared/types/history';
 import type { GenerateReportResult } from '@shared/types/pdf';
 import PageHeader from './PageHeader';
 import { useToast } from './ToastProvider';
@@ -113,12 +115,12 @@ export default function ImportPage({
     if (path) void runPreview(path, 'external');
   }
 
-  async function handleGenerate(): Promise<void> {
+  async function handleGenerate(groupingChoices: GroupingChoices): Promise<void> {
     if (state.status !== 'previewReady') return;
     const preview = state.preview;
     setState({ status: 'generating', preview });
     try {
-      const result = await window.api.reports.generatePdfs(preview);
+      const result = await window.api.reports.generatePdfs(preview, groupingChoices);
       setState({ status: 'generated', preview, result });
       showToast('success', `${result.generated.length} PDF(s) gerado(s) com sucesso.`);
     } catch (error) {
@@ -185,7 +187,12 @@ export default function ImportPage({
       )}
 
       {state.status === 'previewReady' && (
-        <PreviewSummary preview={state.preview} onConfirm={() => void handleGenerate()} onCancel={reset} onGoToSettings={onGoToSettings} />
+        <PreviewSummary
+          preview={state.preview}
+          onConfirm={(groupingChoices) => void handleGenerate(groupingChoices)}
+          onCancel={reset}
+          onGoToSettings={onGoToSettings}
+        />
       )}
 
       {state.status === 'generating' && (
@@ -273,11 +280,22 @@ function PreviewSummary({
   onGoToSettings
 }: {
   preview: BatchPreview;
-  onConfirm: () => void;
+  onConfirm: (groupingChoices: GroupingChoices) => void;
   onCancel: () => void;
   onGoToSettings: () => void;
 }) {
   const blocked = preview.missingBranchCodes.length > 0;
+  const [groupingChoices, setGroupingChoices] = useState<GroupingChoices>({});
+
+  function setChoice(sellerCode: string, mode: GroupingMode): void {
+    setGroupingChoices((current) => ({ ...current, [sellerCode]: mode }));
+  }
+
+  function applyToAll(mode: GroupingMode): void {
+    setGroupingChoices(
+      Object.fromEntries(preview.multiBranchSellers.map((seller) => [seller.sellerCode, mode]))
+    );
+  }
 
   return (
     <div className="card preview-summary">
@@ -301,6 +319,63 @@ function PreviewSummary({
           <div className="stat__value">{preview.documents.length}</div>
         </div>
       </div>
+
+      {preview.multiBranchSellers.length > 0 && (
+        <div className="multi-branch-panel">
+          <div className="multi-branch-panel__header">
+            <Users size={16} />
+            <span>
+              {preview.multiBranchSellers.length > 1
+                ? `${preview.multiBranchSellers.length} vendedores possuem registros em mais de uma filial.`
+                : 'Este vendedor possui registros em mais de uma filial.'}
+            </span>
+          </div>
+
+          {preview.multiBranchSellers.map((seller) => {
+            const mode = groupingChoices[seller.sellerCode] ?? 'separate_by_branch';
+            return (
+              <div className="multi-branch-panel__seller" key={seller.sellerCode}>
+                <div className="multi-branch-panel__seller-info">
+                  <strong>
+                    {seller.sellerName} ({seller.sellerCode})
+                  </strong>
+                  <span className="multi-branch-panel__branches">Filiais: {seller.branchCodes.join(', ')}</span>
+                </div>
+                <div className="multi-branch-panel__options">
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name={`grouping-${seller.sellerCode}`}
+                      checked={mode === 'separate_by_branch'}
+                      onChange={() => setChoice(seller.sellerCode, 'separate_by_branch')}
+                    />
+                    Gerar separado por filial
+                  </label>
+                  <label className="radio-option">
+                    <input
+                      type="radio"
+                      name={`grouping-${seller.sellerCode}`}
+                      checked={mode === 'consolidated_by_seller'}
+                      onChange={() => setChoice(seller.sellerCode, 'consolidated_by_seller')}
+                    />
+                    Gerar consolidado por vendedor
+                  </label>
+                  {preview.multiBranchSellers.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn btn--sm btn--ghost"
+                      onClick={() => applyToAll(mode)}
+                      title="Aplicar esta escolha a todos os vendedores multi-filial"
+                    >
+                      Aplicar esta escolha a todos
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {preview.previouslyProcessedAt && (
         <div className="message-banner message-banner--warning">
@@ -358,7 +433,7 @@ function PreviewSummary({
       </div>
 
       <div className="form-actions" style={{ padding: 0, border: 'none', marginTop: 'var(--space-4)' }}>
-        <button type="button" className="btn btn--primary" onClick={onConfirm} disabled={blocked}>
+        <button type="button" className="btn btn--primary" onClick={() => onConfirm(groupingChoices)} disabled={blocked}>
           <Wand2 size={16} /> Gerar PDFs
         </button>
         <button type="button" className="btn btn--ghost" onClick={onCancel}>
@@ -398,7 +473,19 @@ function GeneratedResults({
           <tbody>
             {result.generated.map((doc) => (
               <tr key={doc.filePath}>
-                <td>{doc.branchCode}</td>
+                <td>
+                  {doc.groupingMode === 'consolidated_by_seller' ? (
+                    <>
+                      <span className="badge badge--consolidated">Consolidado</span>
+                      <div className="doc-branches-list">{doc.branches.map((b) => b.branchCode).join(', ')}</div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="badge badge--separado">Separado</span>
+                      <div className="doc-branches-list">{doc.branchCode}</div>
+                    </>
+                  )}
+                </td>
                 <td>
                   {doc.sellerName} ({doc.sellerCode})
                 </td>

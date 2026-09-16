@@ -2,7 +2,13 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildPdfFileName, resolveGeradosDir, resolveUniqueOutputPath, sanitizeFilenamePart } from './outputPath';
+import {
+  buildConsolidatedPdfFileName,
+  buildPdfFileName,
+  resolveGeradosDir,
+  resolveUniqueOutputPath,
+  sanitizeFilenamePart
+} from './outputPath';
 
 describe('sanitizeFilenamePart', () => {
   it('remove caracteres ilegais no Windows e troca espacos por underscore', () => {
@@ -14,6 +20,23 @@ describe('buildPdfFileName', () => {
   it('monta um nome legivel e deterministico', () => {
     const name = buildPdfFileName('Relacao', new Date(Date.UTC(2026, 8, 10)), '0104', '000001', 'Ademir Furlaneto');
     expect(name).toBe('2026-09-10_RELACAO_0104_000001_ADEMIR_FURLANETO.pdf');
+  });
+});
+
+describe('buildConsolidatedPdfFileName', () => {
+  it('usa o padrao <data>_<MODO>_CONSOLIDADO_<codigo>_<NOME> - sem nenhuma filial', () => {
+    const name = buildConsolidatedPdfFileName(
+      'Relacao',
+      new Date(Date.UTC(2026, 8, 15)),
+      '000097',
+      'Rodrigo Leal Mignella'
+    );
+    expect(name).toBe('2026-09-15_RELACAO_CONSOLIDADO_000097_RODRIGO_LEAL_MIGNELLA.pdf');
+  });
+
+  it('funciona tambem para Previsao', () => {
+    const name = buildConsolidatedPdfFileName('Previsao', new Date(Date.UTC(2026, 8, 15)), '000097', 'Rodrigo Leal Mignella');
+    expect(name).toBe('2026-09-15_PREVISAO_CONSOLIDADO_000097_RODRIGO_LEAL_MIGNELLA.pdf');
   });
 });
 

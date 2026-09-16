@@ -5,6 +5,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { CompanyProfile } from '@shared/types/companyProfile';
 import type { BatchPreview, ImportRequest, ImportResult } from '@shared/types/import';
 import { findUnconfiguredBranchCodes } from '../companies/branchConfiguration';
+import { findMultiBranchSellers } from '../reports/common/grouping';
 import { formatCurrencyBRL } from '../pdf/format';
 import { AmbiguousHeaderError, MissingHeadersError, WrongModeError } from '../reports/common/errors';
 import { parsePrevisaoFile } from '../reports/previsao/parser';
@@ -97,6 +98,7 @@ async function runImport(request: ImportRequest, deps: ImportServiceDeps, fileNa
         rowCount: group.rows.length,
         total: formatCurrencyBRL(group.total)
       })),
+      multiBranchSellers: findMultiBranchSellers(parseResult.groups),
       warnings: parseResult.warnings,
       missingBranchCodes,
       previouslyProcessedAt: previousBatch?.importedAt ?? null

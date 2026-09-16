@@ -24,7 +24,8 @@ const api: FormatadorComissaoApi = {
     openEntradaFolder: (mode) => ipcRenderer.invoke(IPC_CHANNELS.reportsOpenEntradaFolder, mode),
     previewImport: (mode, sourcePath, sourceKind) =>
       ipcRenderer.invoke(IPC_CHANNELS.reportsPreviewImport, mode, sourcePath, sourceKind),
-    generatePdfs: (preview) => ipcRenderer.invoke(IPC_CHANNELS.reportsGeneratePdfs, preview),
+    generatePdfs: (preview, groupingChoices) =>
+      ipcRenderer.invoke(IPC_CHANNELS.reportsGeneratePdfs, preview, groupingChoices),
     onEntradaFileDetected: (callback) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: EntradaFileDetectedPayload): void =>
         callback(payload);

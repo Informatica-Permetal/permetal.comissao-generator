@@ -6,7 +6,7 @@ import type {
   DeleteCompanyProfileResult
 } from '../types/companyProfile';
 import type { GenerateReportResult, PrintPdfResult } from '../types/pdf';
-import type { BatchPreview, EntradaFileDetectedPayload, ImportResult, SourceKind } from '../types/import';
+import type { BatchPreview, EntradaFileDetectedPayload, GroupingChoices, ImportResult, SourceKind } from '../types/import';
 import type {
   DeleteResult,
   HistoryBatch,
@@ -39,8 +39,8 @@ export interface FormatadorComissaoApi {
     chooseSourceFile(): Promise<string | null>;
     openEntradaFolder(mode: ReportMode): Promise<void>;
     previewImport(mode: ReportMode, sourcePath: string, sourceKind: SourceKind): Promise<ImportResult>;
-    /** Runs the full Fase 5 lifecycle (evacuate, generate, archive, persist) for a previewed batch. */
-    generatePdfs(preview: BatchPreview): Promise<GenerateReportResult>;
+    /** Runs the full Fase 5 lifecycle (evacuate, generate, archive, persist) for a previewed batch. `groupingChoices` carries the user's separado/consolidado choice per multi-branch seller; absent sellers default to separado. */
+    generatePdfs(preview: BatchPreview, groupingChoices?: GroupingChoices): Promise<GenerateReportResult>;
     onEntradaFileDetected(callback: (payload: EntradaFileDetectedPayload) => void): () => void;
   };
   pdf: {

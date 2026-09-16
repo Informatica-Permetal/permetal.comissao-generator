@@ -23,6 +23,13 @@ const COMPANY_0103: CompanyProfile = {
   updatedAt: '2026-01-01T00:00:00.000Z'
 };
 
+const COMPANY_0104: CompanyProfile = { ...COMPANY_0103, branchCode: '0104', displayName: 'PERMETAL CRAVINHOS' };
+const COMPANY_0105: CompanyProfile = { ...COMPANY_0103, branchCode: '0105', displayName: 'METALGRADE NOVA' };
+
+function companyLookup(byBranch: Record<string, CompanyProfile>) {
+  return (branchCode: string) => byBranch[branchCode] ?? null;
+}
+
 function previsaoRow(overrides: Partial<PrevisaoParsedRow> = {}): PrevisaoParsedRow {
   return {
     sourceRowNumber: 2,
@@ -171,6 +178,127 @@ describe('generatePrevisaoPdfs', () => {
     expect(result.generated).toHaveLength(2);
     expect(new Set(result.generated.map((g) => g.filePath)).size).toBe(2);
   });
+
+  it('vendedor multi-filial escolhido como consolidado gera um unico PDF com todas as filiais', async () => {
+    const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
+    const result = await generatePrevisaoPdfs(
+      {
+        headerRowNumber: 1,
+        warnings: [],
+        rows: [],
+        groups: [
+          {
+            branchCode: '0103',
+            branchName: 'PERMETAL SAO PAULO',
+            sellerCode: '000097',
+            sellerName: 'RODRIGO LEAL MIGNELLA',
+            rows: [previsaoRow({ comissaoTotalLiquido: new Decimal('10.00') })],
+            total: new Decimal('10.00')
+          },
+          {
+            branchCode: '0104',
+            branchName: 'PERMETAL CRAVINHOS',
+            sellerCode: '000097',
+            sellerName: 'RODRIGO LEAL MIGNELLA',
+            rows: [previsaoRow({ comissaoTotalLiquido: new Decimal('20.00') })],
+            total: new Decimal('20.00')
+          },
+          {
+            branchCode: '0105',
+            branchName: 'METALGRADE NOVA',
+            sellerCode: '000097',
+            sellerName: 'RODRIGO LEAL MIGNELLA',
+            rows: [previsaoRow({ comissaoTotalLiquido: new Decimal('5.00') })],
+            total: new Decimal('5.00')
+          }
+        ]
+      },
+      {
+        reportRoot,
+        generatedAt: new Date(Date.UTC(2026, 8, 15)),
+        lookupCompanyProfile: companyLookup({ '0103': COMPANY_0103, '0104': COMPANY_0104, '0105': COMPANY_0105 }),
+        modeBySeller: new Map([['000097', 'consolidated_by_seller']]),
+        renderPdf
+      }
+    );
+
+    expect(result.generated).toHaveLength(1);
+    const [generated] = result.generated;
+    expect(generated.groupingMode).toBe('consolidated_by_seller');
+    expect(generated.filePath).toBe(
+      join(reportRoot, 'Previsão', 'Gerados', '2026-09-15_PREVISAO_CONSOLIDADO_000097_RODRIGO_LEAL_MIGNELLA.pdf')
+    );
+    expect(existsSync(generated.filePath)).toBe(true);
+    // Total consolidado = soma dos 3 subtotais, nunca recalculado a partir das linhas.
+    expect(generated.total).toBe('R$ 35,00');
+    expect(generated.branches).toEqual([
+      { branchCode: '0103', branchName: 'PERMETAL SAO PAULO', rowCount: 1, subtotal: 'R$ 10,00' },
+      { branchCode: '0104', branchName: 'PERMETAL CRAVINHOS', rowCount: 1, subtotal: 'R$ 20,00' },
+      { branchCode: '0105', branchName: 'METALGRADE NOVA', rowCount: 1, subtotal: 'R$ 5,00' }
+    ]);
+
+    const html = renderPdf.mock.calls[0][0] as string;
+    expect(html).toContain('Filial 0103');
+    expect(html).toContain('Filial 0104');
+    expect(html).toContain('Filial 0105');
+    expect(html).toContain('R$ 10,00');
+    expect(html).toContain('R$ 20,00');
+    expect(html).toContain('R$ 5,00');
+    expect(html).toContain('R$ 35,00');
+    expect(html).toContain('Consolidado');
+  });
+
+  it('lote com escolha mista: um vendedor consolidado e outro separado geram documentos independentes', async () => {
+    const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
+    const result = await generatePrevisaoPdfs(
+      {
+        headerRowNumber: 1,
+        warnings: [],
+        rows: [],
+        groups: [
+          {
+            branchCode: '0103',
+            branchName: 'PERMETAL SAO PAULO',
+            sellerCode: '000097',
+            sellerName: 'RODRIGO LEAL MIGNELLA',
+            rows: [previsaoRow()],
+            total: new Decimal('10')
+          },
+          {
+            branchCode: '0104',
+            branchName: 'PERMETAL CRAVINHOS',
+            sellerCode: '000097',
+            sellerName: 'RODRIGO LEAL MIGNELLA',
+            rows: [previsaoRow()],
+            total: new Decimal('20')
+          },
+          {
+            branchCode: '0103',
+            branchName: 'PERMETAL SAO PAULO',
+            sellerCode: '000001',
+            sellerName: 'OUTRO VENDEDOR',
+            rows: [previsaoRow()],
+            total: new Decimal('99')
+          }
+        ]
+      },
+      {
+        reportRoot,
+        generatedAt: new Date(Date.UTC(2026, 8, 15)),
+        lookupCompanyProfile: companyLookup({ '0103': COMPANY_0103, '0104': COMPANY_0104 }),
+        modeBySeller: new Map([['000097', 'consolidated_by_seller']]),
+        renderPdf
+      }
+    );
+
+    expect(result.generated).toHaveLength(2);
+    const consolidated = result.generated.find((g) => g.sellerCode === '000097');
+    const separate = result.generated.find((g) => g.sellerCode === '000001');
+    expect(consolidated?.groupingMode).toBe('consolidated_by_seller');
+    expect(consolidated?.branches).toHaveLength(2);
+    expect(separate?.groupingMode).toBe('separate_by_branch');
+    expect(separate?.branches).toHaveLength(1);
+  });
 });
 
 describe('generateRelacaoPdfs', () => {
@@ -202,5 +330,53 @@ describe('generateRelacaoPdfs', () => {
     expect(renderPdf).toHaveBeenCalledTimes(1);
     expect(renderPdf.mock.calls[0][0]).toContain('R$ 191,38');
     expect(renderPdf.mock.calls[0][0]).toContain('Total da Comissão');
+  });
+
+  it('vendedor multi-filial escolhido como consolidado gera um unico PDF, filial deixa de ser exigida em cada linha', async () => {
+    const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
+    const result = await generateRelacaoPdfs(
+      {
+        headerRowNumber: 1,
+        warnings: [],
+        rows: [],
+        groups: [
+          {
+            branchCode: '0103',
+            branchName: 'PERMETAL SAO PAULO',
+            sellerCode: '000097',
+            sellerName: 'RODRIGO LEAL MIGNELLA',
+            rows: [relacaoRow({ valorDaComissao: new Decimal('10.00') })],
+            total: new Decimal('10.00')
+          },
+          {
+            branchCode: '0104',
+            branchName: 'PERMETAL CRAVINHOS',
+            sellerCode: '000097',
+            sellerName: 'RODRIGO LEAL MIGNELLA',
+            rows: [relacaoRow({ valorDaComissao: new Decimal('20.00') })],
+            total: new Decimal('20.00')
+          }
+        ]
+      },
+      {
+        reportRoot,
+        generatedAt: new Date(Date.UTC(2026, 8, 15)),
+        lookupCompanyProfile: companyLookup({ '0103': COMPANY_0103, '0104': COMPANY_0104 }),
+        modeBySeller: new Map([['000097', 'consolidated_by_seller']]),
+        renderPdf
+      }
+    );
+
+    expect(result.generated).toHaveLength(1);
+    const [generated] = result.generated;
+    expect(generated.groupingMode).toBe('consolidated_by_seller');
+    expect(generated.filePath).toBe(
+      join(reportRoot, 'Relação', 'Gerados', '2026-09-15_RELACAO_CONSOLIDADO_000097_RODRIGO_LEAL_MIGNELLA.pdf')
+    );
+    expect(generated.total).toBe('R$ 30,00');
+
+    const html = renderPdf.mock.calls[0][0] as string;
+    expect(html).toContain('Total Consolidado da Comissão');
+    expect(html).toContain('R$ 30,00');
   });
 });

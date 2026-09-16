@@ -38,15 +38,15 @@ function seedDocumentForBranch(branchCode: string): void {
     id: 'doc-1',
     batchId: 'batch-1',
     mode: 'Previsao',
-    branchCode,
-    branchName: 'Filial',
+    groupingMode: 'separate_by_branch',
     sellerCode: 'V1',
     sellerName: 'Vendedor',
     sourceRowCount: 1,
     commissionTotal: '100.00',
     pdfPath: join(dir, 'doc-1.pdf'),
     generatedAt: new Date().toISOString(),
-    templateVersion: '1'
+    templateVersion: '1',
+    branches: [{ branchCode, branchName: 'Filial', rowCount: 1, subtotal: '100.00' }]
   });
 }
 

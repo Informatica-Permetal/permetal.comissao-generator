@@ -60,8 +60,16 @@ const COMPANY_0103: CompanyProfile = {
   updatedAt: '2026-01-01T00:00:00.000Z'
 };
 
+const COMPANY_0104: CompanyProfile = { ...COMPANY_0103, branchCode: '0104', displayName: 'PERMETAL CRAVINHOS' };
+
 function lookupOnly0103(code: string): CompanyProfile | null {
   return code === '0103' ? COMPANY_0103 : null;
+}
+
+function lookup0103and0104(code: string): CompanyProfile | null {
+  if (code === '0103') return COMPANY_0103;
+  if (code === '0104') return COMPANY_0104;
+  return null;
 }
 
 let reportRoot: string;
@@ -113,6 +121,29 @@ async function seedCompletedBatchWithTwoDocuments(batchId: string): Promise<void
   await runBatchGeneration(
     { mode: 'Previsao', batchId, sourcePath, sourceKind: 'external', workspaceFilePath },
     generationDeps(vi.fn().mockResolvedValue(FAKE_PDF_BUFFER))
+  );
+}
+
+async function seedCompletedConsolidatedBatch(batchId: string): Promise<void> {
+  const sourcePath = await writeFixtureWorkbook(sourceDir, `${batchId}.xlsx`, PREVISAO_HEADERS, [
+    previsaoRow({ 'Dados do vendedor': '000097 - RODRIGO LEAL MIGNELLA', 'Nome da filial': '0103 - PERMETAL SAO PAULO' }),
+    previsaoRow({ 'Dados do vendedor': '000097 - RODRIGO LEAL MIGNELLA', 'Nome da filial': '0104 - PERMETAL CRAVINHOS' })
+  ]);
+  const workspaceDir = join(reportRoot, 'Previsão', 'Processamento', batchId);
+  mkdirSync(workspaceDir, { recursive: true });
+  const workspaceFilePath = join(workspaceDir, 'previsao.xlsx');
+  writeFileSync(workspaceFilePath, readFileSync(sourcePath));
+
+  await runBatchGeneration(
+    {
+      mode: 'Previsao',
+      batchId,
+      sourcePath,
+      sourceKind: 'external',
+      workspaceFilePath,
+      groupingChoices: { '000097': 'consolidated_by_seller' }
+    },
+    { db, reportRoot, lookupCompanyProfile: lookup0103and0104, appVersion: '0.1.0-test', renderPdf: vi.fn().mockResolvedValue(FAKE_PDF_BUFFER) }
   );
 }
 
@@ -168,6 +199,25 @@ describe('deleteDocument', () => {
     const remaining = listDocumentsByBatch(db, 'batch-siblings');
     expect(remaining).toHaveLength(1);
     expect(remaining[0].id).toBe(documentB.id);
+  });
+
+  it('exclui um documento consolidado (varias filiais) sem afetar a fonte XLSX compartilhada do lote', async () => {
+    await seedCompletedConsolidatedBatch('batch-consolidated');
+    const [document] = listDocumentsByBatch(db, 'batch-consolidated');
+    expect(document.groupingMode).toBe('consolidated_by_seller');
+    expect(document.branches).toHaveLength(2);
+    const batch = getBatchById(db, 'batch-consolidated');
+
+    const trashed: string[] = [];
+    const result = await deleteDocument(document.id, { db, trashItem: fakeTrash(trashed) });
+
+    expect(result.ok).toBe(true);
+    expect(trashed).toEqual([document.pdfPath]);
+    expect(existsSync(document.pdfPath)).toBe(false);
+    expect(getDocumentById(db, document.id)).toBeNull();
+
+    // A fonte arquivada e compartilhada pelo lote - excluir o documento consolidado nunca a toca.
+    expect(batch?.sourceArchivedPath && existsSync(batch.sourceArchivedPath)).toBe(true);
   });
 });
 

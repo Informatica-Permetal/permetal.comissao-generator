@@ -5,8 +5,11 @@ export const IPC_CHANNELS = {
   settingsCompleteFirstRun: 'settings:complete-first-run',
 
   companiesList: 'companies:list',
+  companiesListGroups: 'companies:list-groups',
   companiesUpsert: 'companies:upsert',
   companiesChooseLogo: 'companies:choose-logo',
+  companiesSetActive: 'companies:set-active',
+  companiesDelete: 'companies:delete',
 
   reportsChooseSourceFile: 'reports:choose-source-file',
   reportsOpenEntradaFolder: 'reports:open-entrada-folder',

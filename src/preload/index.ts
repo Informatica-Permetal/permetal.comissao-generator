@@ -13,8 +13,11 @@ const api: FormatadorComissaoApi = {
   },
   companies: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.companiesList),
+    listGroups: () => ipcRenderer.invoke(IPC_CHANNELS.companiesListGroups),
     upsert: (input) => ipcRenderer.invoke(IPC_CHANNELS.companiesUpsert, input),
-    chooseLogo: (branchCode) => ipcRenderer.invoke(IPC_CHANNELS.companiesChooseLogo, branchCode)
+    chooseLogo: (branchCode) => ipcRenderer.invoke(IPC_CHANNELS.companiesChooseLogo, branchCode),
+    setActive: (branchCode, active) => ipcRenderer.invoke(IPC_CHANNELS.companiesSetActive, branchCode, active),
+    delete: (branchCode) => ipcRenderer.invoke(IPC_CHANNELS.companiesDelete, branchCode)
   },
   reports: {
     chooseSourceFile: () => ipcRenderer.invoke(IPC_CHANNELS.reportsChooseSourceFile),

@@ -56,6 +56,20 @@ const MIGRATIONS: readonly string[] = [
   CREATE INDEX IF NOT EXISTS idx_documents_branch_code ON documents (branch_code);
   CREATE INDEX IF NOT EXISTS idx_documents_seller_code ON documents (seller_code);
   CREATE INDEX IF NOT EXISTS idx_documents_generated_at ON documents (generated_at);
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS company_groups (
+    group_key TEXT PRIMARY KEY,
+    display_name TEXT,
+    legal_name TEXT,
+    headquarters_branch_code TEXT,
+    headquarters_cnpj TEXT,
+    headquarters_address_json TEXT,
+    updated_at TEXT NOT NULL
+  );
+
+  ALTER TABLE company_profiles ADD COLUMN group_key TEXT REFERENCES company_groups (group_key);
+  CREATE INDEX IF NOT EXISTS idx_company_profiles_group_key ON company_profiles (group_key);
   `
 ];
 

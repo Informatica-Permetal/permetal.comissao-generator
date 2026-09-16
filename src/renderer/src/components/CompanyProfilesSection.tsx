@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { ImageUp, Plus, Save, Building2, X } from 'lucide-react';
-import type { CompanyProfileWithLogoPreview } from '@shared/types/companyProfile';
+import { useEffect, useMemo, useState } from 'react';
+import { Ban, CheckCircle2, ImageUp, Plus, Save, Building2, Search, Trash2, X } from 'lucide-react';
+import type { CompanyGroup, CompanyProfileWithLogoPreview } from '@shared/types/companyProfile';
 import { useToast } from './ToastProvider';
+import { useConfirmDialog } from './ConfirmDialogProvider';
 
 interface FieldsState {
   displayName: string;
@@ -9,8 +10,10 @@ interface FieldsState {
   tradeName: string;
   cnpj: string;
   endereco: string;
+  bairro: string;
   cidade: string;
   uf: string;
+  cep: string;
 }
 
 function toFields(profile: CompanyProfileWithLogoPreview): FieldsState {
@@ -20,16 +23,30 @@ function toFields(profile: CompanyProfileWithLogoPreview): FieldsState {
     tradeName: profile.tradeName ?? '',
     cnpj: profile.cnpj ?? '',
     endereco: profile.address?.endereco ?? '',
+    bairro: profile.address?.bairro ?? '',
     cidade: profile.address?.cidade ?? '',
-    uf: profile.address?.uf ?? ''
+    uf: profile.address?.uf ?? '',
+    cep: profile.address?.cep ?? ''
   };
+}
+
+function matchesSearch(profile: CompanyProfileWithLogoPreview, term: string): boolean {
+  if (!term) return true;
+  const haystack = [profile.branchCode, profile.displayName, profile.legalName, profile.tradeName]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(term.toLowerCase());
 }
 
 export default function CompanyProfilesSection() {
   const [profiles, setProfiles] = useState<CompanyProfileWithLogoPreview[] | null>(null);
+  const [groups, setGroups] = useState<CompanyGroup[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [search, setSearch] = useState('');
   const { showToast } = useToast();
+  const confirm = useConfirmDialog();
 
   useEffect(() => {
     void refresh();
@@ -37,8 +54,9 @@ export default function CompanyProfilesSection() {
 
   async function refresh(): Promise<void> {
     try {
-      const list = await window.api.companies.list();
+      const [list, groupList] = await Promise.all([window.api.companies.list(), window.api.companies.listGroups()]);
       setProfiles(list);
+      setGroups(groupList);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao carregar as filiais.');
     }
@@ -52,7 +70,7 @@ export default function CompanyProfilesSection() {
     }
   }
 
-  async function handleSave(branchCode: string, active: boolean, fields: FieldsState): Promise<void> {
+  async function handleSave(branchCode: string, active: boolean, groupKey: string | null, fields: FieldsState): Promise<void> {
     try {
       await window.api.companies.upsert({
         branchCode,
@@ -60,7 +78,14 @@ export default function CompanyProfilesSection() {
         legalName: fields.legalName || null,
         tradeName: fields.tradeName || null,
         cnpj: fields.cnpj || null,
-        address: { endereco: fields.endereco, cidade: fields.cidade, uf: fields.uf },
+        address: {
+          endereco: fields.endereco,
+          bairro: fields.bairro,
+          cidade: fields.cidade,
+          uf: fields.uf,
+          cep: fields.cep
+        },
+        groupKey,
         active
       });
       await refresh();
@@ -70,12 +95,70 @@ export default function CompanyProfilesSection() {
     }
   }
 
-  async function handleAddBranch(branchCode: string, displayName: string): Promise<void> {
-    await window.api.companies.upsert({ branchCode, displayName, active: true });
+  async function handleToggleActive(profile: CompanyProfileWithLogoPreview): Promise<void> {
+    try {
+      await window.api.companies.setActive(profile.branchCode, !profile.active);
+      await refresh();
+      showToast('success', profile.active ? `Filial ${profile.branchCode} desativada.` : `Filial ${profile.branchCode} ativada.`);
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Falha ao alterar o status da filial.');
+    }
+  }
+
+  async function handleDelete(profile: CompanyProfileWithLogoPreview): Promise<void> {
+    const confirmed = await confirm({
+      title: 'Excluir filial',
+      message: `Excluir a filial ${profile.branchCode} — ${profile.displayName}? Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir'
+    });
+    if (!confirmed) return;
+
+    try {
+      const result = await window.api.companies.delete(profile.branchCode);
+      if (!result.ok) {
+        showToast(
+          'error',
+          `Esta filial tem ${result.documentCount} documento(s) no histórico e não pode ser excluída. Desative-a em vez disso.`
+        );
+        return;
+      }
+      await refresh();
+      showToast('success', `Filial ${profile.branchCode} excluída.`);
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Falha ao excluir a filial.');
+    }
+  }
+
+  async function handleAddBranch(branchCode: string, displayName: string, groupKey: string | null): Promise<void> {
+    await window.api.companies.upsert({ branchCode, displayName, groupKey, active: true });
     await refresh();
     setShowAddForm(false);
     showToast('success', `Filial ${branchCode} adicionada.`);
   }
+
+  const filtered = useMemo(() => (profiles ?? []).filter((p) => matchesSearch(p, search)), [profiles, search]);
+
+  const sections = useMemo(() => {
+    const groupOrder = new Map(groups.map((g, index) => [g.groupKey, index]));
+    const byGroup = new Map<string, CompanyProfileWithLogoPreview[]>();
+    for (const profile of filtered) {
+      const key = profile.groupKey ?? '__sem_grupo__';
+      const list = byGroup.get(key) ?? [];
+      list.push(profile);
+      byGroup.set(key, list);
+    }
+    return Array.from(byGroup.entries())
+      .sort(([a], [b]) => {
+        if (a === '__sem_grupo__') return 1;
+        if (b === '__sem_grupo__') return -1;
+        return (groupOrder.get(a) ?? 99) - (groupOrder.get(b) ?? 99);
+      })
+      .map(([key, list]) => ({
+        key,
+        title: key === '__sem_grupo__' ? 'Sem grupo' : groups.find((g) => g.groupKey === key)?.displayName ?? key,
+        profiles: list
+      }));
+  }, [filtered, groups]);
 
   if (error) return <div className="message-banner message-banner--error">{error}</div>;
   if (!profiles) {
@@ -89,17 +172,39 @@ export default function CompanyProfilesSection() {
 
   return (
     <div className="company-profiles">
-      {profiles.map((profile) => (
-        <CompanyCard
-          key={profile.branchCode}
-          profile={profile}
-          onChooseLogo={() => void handleChooseLogo(profile.branchCode)}
-          onSave={(fields) => handleSave(profile.branchCode, profile.active, fields)}
+      <div className="company-search">
+        <Search size={16} className="company-search__icon" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por código ou nome..."
+          aria-label="Buscar filial por código ou nome"
         />
+      </div>
+
+      {sections.map((section) => (
+        <div key={section.key} className="company-group-section">
+          <div className="company-group-section__title">{section.title}</div>
+          <div className="company-group-section__cards">
+            {section.profiles.map((profile) => (
+              <CompanyCard
+                key={profile.branchCode}
+                profile={profile}
+                onChooseLogo={() => void handleChooseLogo(profile.branchCode)}
+                onSave={(fields) => handleSave(profile.branchCode, profile.active, profile.groupKey, fields)}
+                onToggleActive={() => void handleToggleActive(profile)}
+                onDelete={() => void handleDelete(profile)}
+              />
+            ))}
+          </div>
+        </div>
       ))}
 
+      {filtered.length === 0 && <p className="company-profiles__empty">Nenhuma filial encontrada para "{search}".</p>}
+
       {showAddForm ? (
-        <AddBranchCard onCancel={() => setShowAddForm(false)} onAdd={handleAddBranch} />
+        <AddBranchCard groups={groups} onCancel={() => setShowAddForm(false)} onAdd={handleAddBranch} />
       ) : (
         <button type="button" className="card add-branch-card" onClick={() => setShowAddForm(true)}>
           <Plus size={18} />
@@ -113,11 +218,15 @@ export default function CompanyProfilesSection() {
 function CompanyCard({
   profile,
   onChooseLogo,
-  onSave
+  onSave,
+  onToggleActive,
+  onDelete
 }: {
   profile: CompanyProfileWithLogoPreview;
   onChooseLogo: () => void;
   onSave: (fields: FieldsState) => Promise<void>;
+  onToggleActive: () => void;
+  onDelete: () => void;
 }) {
   const [fields, setFields] = useState<FieldsState>(() => toFields(profile));
   const [saving, setSaving] = useState(false);
@@ -142,7 +251,7 @@ function CompanyCard({
   const id = profile.branchCode;
 
   return (
-    <article className="company-card card">
+    <article className={`company-card card${profile.active ? '' : ' company-card--inactive'}`}>
       <header className="company-card__header">
         <div className="company-card__logo-wrap">
           {profile.logoDataUri ? (
@@ -156,6 +265,7 @@ function CompanyCard({
         <div className="company-card__identity">
           <div className="company-card__badges">
             <span className="badge badge--code">{profile.branchCode}</span>
+            {!profile.active && <span className="badge badge--inactive">Inativa</span>}
           </div>
           <div className="company-card__name">{fields.displayName || profile.displayName}</div>
         </div>
@@ -221,6 +331,15 @@ function CompanyCard({
               />
             </div>
             <div className="field">
+              <label htmlFor={`${id}-bairro`}>Bairro</label>
+              <input
+                id={`${id}-bairro`}
+                value={fields.bairro}
+                onChange={(e) => update('bairro', e.target.value)}
+                placeholder="Não informado"
+              />
+            </div>
+            <div className="field">
               <label htmlFor={`${id}-cidade`}>Cidade</label>
               <input
                 id={`${id}-cidade`}
@@ -239,12 +358,41 @@ function CompanyCard({
                 placeholder="-"
               />
             </div>
+            <div className="field">
+              <label htmlFor={`${id}-cep`}>CEP</label>
+              <input
+                id={`${id}-cep`}
+                value={fields.cep}
+                onChange={(e) => update('cep', e.target.value)}
+                placeholder="Não informado"
+              />
+            </div>
           </div>
         </div>
       </div>
 
       <div className="form-actions">
-        <button type="button" className="btn btn--primary btn--sm" onClick={() => void handleSaveClick()} disabled={saving}>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onToggleActive}>
+          {profile.active ? (
+            <>
+              <Ban size={14} /> Desativar
+            </>
+          ) : (
+            <>
+              <CheckCircle2 size={14} /> Ativar
+            </>
+          )}
+        </button>
+        <button type="button" className="btn btn--ghost btn--sm btn--danger" onClick={onDelete}>
+          <Trash2 size={14} /> Excluir
+        </button>
+        <button
+          type="button"
+          className="btn btn--primary btn--sm"
+          style={{ marginLeft: 'auto' }}
+          onClick={() => void handleSaveClick()}
+          disabled={saving}
+        >
           <Save size={14} /> {saving ? 'Salvando...' : 'Salvar alterações'}
         </button>
       </div>
@@ -253,14 +401,17 @@ function CompanyCard({
 }
 
 function AddBranchCard({
+  groups,
   onCancel,
   onAdd
 }: {
+  groups: CompanyGroup[];
   onCancel: () => void;
-  onAdd: (branchCode: string, displayName: string) => Promise<void>;
+  onAdd: (branchCode: string, displayName: string, groupKey: string | null) => Promise<void>;
 }) {
   const [branchCode, setBranchCode] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [groupKey, setGroupKey] = useState('');
   const [saving, setSaving] = useState(false);
   const { showToast } = useToast();
 
@@ -271,7 +422,7 @@ function AddBranchCard({
     }
     setSaving(true);
     try {
-      await onAdd(branchCode.trim(), displayName.trim());
+      await onAdd(branchCode.trim(), displayName.trim(), groupKey || null);
     } catch (err) {
       showToast('error', err instanceof Error ? err.message : 'Falha ao adicionar filial.');
     } finally {
@@ -295,6 +446,17 @@ function AddBranchCard({
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="ex: Três-S"
           />
+        </div>
+        <div className="field field--grow">
+          <label htmlFor="new-branch-group">Grupo corporativo</label>
+          <select id="new-branch-group" value={groupKey} onChange={(e) => setGroupKey(e.target.value)}>
+            <option value="">Sem grupo</option>
+            {groups.map((group) => (
+              <option key={group.groupKey} value={group.groupKey}>
+                {group.displayName}
+              </option>
+            ))}
+          </select>
         </div>
         <button type="button" className="btn btn--primary btn--sm" onClick={() => void handleAdd()} disabled={saving}>
           <Plus size={14} /> {saving ? 'Adicionando...' : 'Adicionar'}

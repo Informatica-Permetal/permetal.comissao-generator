@@ -3,13 +3,21 @@ import { extname, join } from 'node:path';
 import { dialog, ipcMain, type BrowserWindow } from 'electron';
 import type { DatabaseSync } from 'node:sqlite';
 import { IPC_CHANNELS } from '@shared/contracts/ipc';
-import type { CompanyProfile, CompanyProfileInput, CompanyProfileWithLogoPreview } from '@shared/types/companyProfile';
+import type {
+  CompanyProfile,
+  CompanyProfileInput,
+  CompanyProfileWithLogoPreview,
+  DeleteCompanyProfileResult
+} from '@shared/types/companyProfile';
 import {
   getCompanyProfile,
   listCompanyProfiles,
+  setCompanyProfileActive,
   setCompanyProfileLogo,
   upsertCompanyProfile
 } from '../companies/companyProfileRepository';
+import { listCompanyGroups } from '../companies/companyGroupRepository';
+import { deleteCompanyProfileSafely } from '../companies/companyProfileService';
 import { embedImageAsDataUri } from '../pdf/embedImage';
 import type { AppDataPaths } from '../app/paths';
 
@@ -33,10 +41,25 @@ export function registerCompanyProfileHandlers(deps: CompanyProfileHandlerDeps):
     listCompanyProfiles(db).map(withLogoPreview)
   );
 
+  ipcMain.handle(IPC_CHANNELS.companiesListGroups, () => listCompanyGroups(db));
+
   ipcMain.handle(
     IPC_CHANNELS.companiesUpsert,
     (_event, input: CompanyProfileInput): CompanyProfileWithLogoPreview =>
       withLogoPreview(upsertCompanyProfile(db, input))
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.companiesSetActive,
+    (_event, branchCode: string, active: boolean): CompanyProfileWithLogoPreview | null => {
+      const profile = setCompanyProfileActive(db, branchCode, active);
+      return profile ? withLogoPreview(profile) : null;
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.companiesDelete,
+    (_event, branchCode: string): DeleteCompanyProfileResult => deleteCompanyProfileSafely(db, branchCode)
   );
 
   ipcMain.handle(IPC_CHANNELS.companiesChooseLogo, async (_event, branchCode: string) => {

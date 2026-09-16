@@ -81,6 +81,14 @@ export function deleteDocumentRecord(db: DatabaseSync, documentId: string): void
   db.prepare('DELETE FROM documents WHERE id = ?').run(documentId);
 }
 
+/** Number of document records (history entries) currently linked to a branch code. */
+export function countDocumentsForBranch(db: DatabaseSync, branchCode: string): number {
+  const row = db.prepare('SELECT COUNT(*) as count FROM documents WHERE branch_code = ?').get(branchCode) as {
+    count: number;
+  };
+  return row.count;
+}
+
 export function getDocumentById(db: DatabaseSync, documentId: string): HistoryDocument | null {
   const row = db
     .prepare(

@@ -1,5 +1,10 @@
 import type { AppState, CompleteFirstRunResult, FolderPermissionResult } from '../types/settings';
-import type { CompanyProfileInput, CompanyProfileWithLogoPreview } from '../types/companyProfile';
+import type {
+  CompanyGroup,
+  CompanyProfileInput,
+  CompanyProfileWithLogoPreview,
+  DeleteCompanyProfileResult
+} from '../types/companyProfile';
 import type { GenerateReportResult, PrintPdfResult } from '../types/pdf';
 import type { BatchPreview, EntradaFileDetectedPayload, ImportResult, SourceKind } from '../types/import';
 import type {
@@ -24,8 +29,11 @@ export interface FormatadorComissaoApi {
   };
   companies: {
     list(): Promise<CompanyProfileWithLogoPreview[]>;
+    listGroups(): Promise<CompanyGroup[]>;
     upsert(input: CompanyProfileInput): Promise<CompanyProfileWithLogoPreview>;
     chooseLogo(branchCode: string): Promise<CompanyProfileWithLogoPreview | null>;
+    setActive(branchCode: string, active: boolean): Promise<CompanyProfileWithLogoPreview | null>;
+    delete(branchCode: string): Promise<DeleteCompanyProfileResult>;
   };
   reports: {
     chooseSourceFile(): Promise<string | null>;

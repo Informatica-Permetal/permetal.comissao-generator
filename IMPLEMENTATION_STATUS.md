@@ -1074,3 +1074,81 @@ Validado visualmente no app real (Electron real, clique real): ícone visível e
 - `npm run dist` não foi regenerado (mudança é só de renderer/testes, sem impacto no instalador).
 
 **PARADO conforme instruído.**
+
+## Revisão do cadastro corporativo (CONCLUÍDA)
+
+Cadastro real das 7 filiais dos grupos PERMETAL e TRÊS-S (razão social, CNPJ, endereço completo com bairro/CEP), novo conceito de **grupo corporativo** separado de filial Protheus e de marca/logo, CRUD completo (ativar/desativar, excluir com bloqueio quando há histórico), busca e organização visual por grupo. Dados vieram exclusivamente de `Cadastro-Empresas-Formatador-Comissao.md` (fornecido pelo usuário em 15/09/2026) - nenhuma consulta à internet foi feita.
+
+### Modelo de dados
+
+- `src/shared/types/companyProfile.ts` - `CompanyAddress` ganha `bairro`/`cep`; `CompanyProfile`/`CompanyProfileInput` ganham `groupKey`; novo tipo `CompanyGroup` (grupo é uma entidade própria: razão social, nome de exibição, matriz/CNPJ/endereço da matriz) e `DeleteCompanyProfileResult`.
+- `src/main/storage/database.ts` - novo `MIGRATIONS[1]` (aditivo, `ALTER TABLE`/`CREATE TABLE IF NOT EXISTS`): tabela `company_groups` e coluna `company_profiles.group_key`. Migração testada tanto em banco novo quanto simulando um banco real pré-existente (só a migração 0 aplicada, `user_version = 1`) - dados de uma filial já customizada permanecem intactos após a migração avançar para a versão 2.
+- `src/main/companies/companyGroupRepository.ts` (novo) - CRUD de grupos + `fillEmptyCompanyGroupFields` (semeia se não existe; senão preenche só campo vazio, nunca sobrescreve).
+- `src/main/companies/companyProfileRepository.ts` - `group_key` persistido; `setCompanyProfileActive`; `deleteCompanyProfileRecord` (delete cru, sem checagem - a checagem de segurança vive na camada de serviço); `fillEmptyCompanyProfileFields` (mesma semântica de preenchimento parcial, campo a campo, inclusive dentro do endereço - nunca move um valor não-vazio para vazio, nunca altera `active` nem `logoPath`).
+- `src/main/storage/documentRepository.ts` - nova `countDocumentsForBranch`.
+- `src/main/companies/companyProfileService.ts` (novo) - `deleteCompanyProfileSafely`: bloqueia a exclusão e retorna `{ ok: false, reason: 'hasDocuments', documentCount }` quando há qualquer documento vinculado à filial; só apaga de fato quando a contagem é zero.
+
+### Separação conceitual preservada
+
+Grupo corporativo (`company_groups`), filial Protheus (`company_profiles.branch_code`, já existente) e marca/logo (`brandLabel.ts`, derivado do nome do arquivo de logo) continuam três colunas/mecanismos completamente independentes - nenhuma foi fundida com outra. `brandLabel.ts`/`brandLogos.ts` não foram alterados.
+
+### Seed (`src/main/companies/seedCompanyProfiles.ts`, reescrito)
+
+- 7 filiais reais (antes eram 4): `0101` PERMETAL, `0103` PERMETAL SÃO PAULO, `0104` PERMETAL CRAVINHOS, `0105` METALGRADE NOVA, `0106` MGZINC GALVANIZAÇÃO, `0503` TRÊS-S FILIAL, `0504` TRÊS-S MATRIZ DISCO - cada uma com razão social, CNPJ e endereço completo (endereço/bairro/cidade/UF/CEP) reais, exatamente como no `.md` fornecido.
+- 2 grupos reais semeados primeiro (FK exige que o grupo exista antes do perfil referenciá-lo): PERMETAL (matriz `0104`) e TRES_S (matriz `0504`).
+- Lógica trocada de "pula inteiramente se a filial já existe" para **inserir se ausente; senão preencher só os campos vazios** (`fillEmptyCompanyProfileFields`/`fillEmptyCompanyGroupFields`) - uma instalação existente com `0106` cadastrada só como "MG" (sem CNPJ/endereço/grupo) passa a ganhar CNPJ/endereço/grupo reais automaticamente, mas o nome de exibição customizado "MG" nunca é sobrescrito para "MGZINC GALVANIZAÇÃO".
+- Logo: continua nunca substituindo uma logo já definida; agora também **preenche** a logo de uma filial pré-existente que nunca teve uma (antes só definia logo na criação).
+- Idempotente: `seedDefaultCompanyProfiles` pode rodar em todo início do app sem duplicar nem reverter nada.
+
+### CRUD e UI (`src/renderer/src/components/CompanyProfilesSection.tsx`, reescrito)
+
+- Campos de endereço ganham **Bairro** e **CEP** (grid de 5 colunas, com o breakpoint de tela pequena já existente colapsando para 1 coluna).
+- Nova **busca** por código ou nome (filial/razão social/nome fantasia), client-side, sempre visível no topo.
+- Filiais agora são **organizadas visualmente por grupo** (título de seção = nome de exibição do grupo; filiais sem grupo caem em "Sem grupo" ao final) - resolve a exigência de layout que escala para muitas filiais sem sobreposição.
+- Novo botão **Ativar/Desativar** por filial (`window.api.companies.setActive`) - card fica com opacidade reduzida e badge "Inativa" quando desativada.
+- Novo botão **Excluir** por filial, com diálogo de confirmação (`useConfirmDialog`, já existente) e, se a exclusão for bloqueada por haver histórico, toast explicando quantos documentos existem e sugerindo desativar em vez de excluir.
+- `AddBranchCard` (Nova filial) ganha um seletor opcional de **grupo corporativo** (lista os grupos cadastrados).
+
+### IPC/contratos novos
+
+`companiesListGroups`, `companiesSetActive`, `companiesDelete` em `ipc.ts`/`companyProfileHandlers.ts`/`api.ts`/`preload/index.ts`, seguindo o padrão já existente (um método tipado por operação, sem passthrough genérico).
+
+### Testes automatizados (58 novos)
+
+- `companyGroupRepository.test.ts` (novo) - CRUD de grupo, `fillEmptyCompanyGroupFields` (cria se ausente, nunca sobrescreve, preenche só vazio).
+- `companyProfileRepository.test.ts` - persistência de `group_key`, `setCompanyProfileActive`, `deleteCompanyProfileRecord`, e `fillEmptyCompanyProfileFields` (cria se ausente; nunca sobrescreve campo do usuário; preenche endereço campo a campo; nunca toca `active`; idempotente).
+- `seedCompanyProfiles.test.ts` (reescrito) - semeia as 7 filiais com marca/logo/grupo/CNPJ corretos; semeia os 2 grupos com dados da matriz; nunca sobrescreve edição do usuário; preenche só campos vazios de uma filial pré-existente (cenário real de upgrade); idempotente.
+- `companyProfileService.test.ts` (novo) - exclui quando não há documento; bloqueia quando há; exclusão de uma filial nunca afeta outra.
+- `database.test.ts` - novo teste simulando um banco real pré-existente (só migração 0 aplicada) migrando para a versão com `company_groups`/`group_key` sem perda de dados.
+
+### Validação real (banco novo e banco existente, não só testes)
+
+App real (`npx electron out/main/index.js`) executado duas vezes com `LOCALAPPDATA` isolado, inspecionando o SQLite resultante diretamente:
+
+| Cenário | Resultado |
+|---|---|
+| Instalação nova (banco vazio) | 7 filiais + 2 grupos criados com todos os dados reais corretos; logos corretas por marca; grupos corretos por filial |
+| Instalação existente (banco com o seed antigo de 4 filiais, uma delas - `0103` - com `legal_name`/`cnpj` customizados pelo usuário, e um documento real vinculado a `0104`) | `0103` manteve exatamente os valores customizados; `0106` manteve o nome de exibição antigo "MG"; as 3 filiais ausentes (`0101`/`0503`/`0504`) foram inseridas; CNPJ/endereço/grupo foram preenchidos nas 4 filiais antigas (estavam vazios); logos preenchidas retroativamente onde estavam vazias |
+
+Validação visual no app real (Electron real, screenshots reais, cliques reais via `webContents.executeJavaScript`/`capturePage`, script temporário removido ao final - `git diff` de `src/main/index.ts` confirmado vazio): busca filtra corretamente (ex.: "tres" esconde o grupo Permetal por completo); seções por grupo sem sobreposição; card desativado mostra badge "Inativa" e opacidade reduzida com toast de confirmação; diálogo de exclusão com o texto correto; exclusão bloqueada por histórico mostra o toast exato "Esta filial tem 1 documento(s) no histórico e não pode ser excluída. Desative-a em vez disso."
+
+### Regras financeiras
+
+Não alteradas. Nenhum arquivo de `reports/`, `pdf/` (cálculo/agrupamento) ou validação de contrato foi tocado nesta fase.
+
+### Testes técnicos
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK |
+| `npm run lint` | OK - 0 erros, 2 avisos pré-existentes inalterados |
+| `npm run test` | OK - **210/210** testes (21 novos: 6 de grupo + 9 de perfil/seed/serviço + 2 de migração + demais ajustes de fixture) |
+| `npm run build` | OK |
+
+### Pendências / observações
+
+- `npm run dist` não foi regenerado (mudança não afeta o instalador em si).
+- A logo/branding visual da PDF continua usando `legalName ?? brandLabel ?? displayName` (lógica existente, inalterada) - agora que `legalName` está preenchido para todas as 7 filiais, o cabeçalho do PDF passa a mostrar a razão social real (compartilhada dentro do mesmo grupo, ex. Permetal/Metalgrade/MGZinc) em vez do `brandLabel` como era antes para `0105`/`0106`. Isso é a consequência natural de ter dados legais reais em vez de um fallback; nenhuma lógica de template de PDF foi alterada nesta fase - se a preferência for manter a marca (Metalgrade/MGZinc) em destaque no cabeçalho em vez da razão social do grupo, isso é uma decisão de fase futura de PDF, fora do escopo desta revisão de cadastro.
+- Não há UI para criar/editar grupos diretamente (apenas seed automático dos 2 grupos reais e um seletor de grupo existente ao adicionar filial) - CRUD de grupo em si não foi pedido nesta fase.
+
+**PARADO conforme instruído.**

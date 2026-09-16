@@ -18,6 +18,7 @@ const COMPANY_0103: CompanyProfile = {
   cnpj: null,
   address: null,
   logoPath: null,
+  groupKey: null,
   active: true,
   updatedAt: '2026-01-01T00:00:00.000Z'
 };

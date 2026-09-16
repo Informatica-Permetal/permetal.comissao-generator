@@ -1036,3 +1036,41 @@ Validado visualmente com captura de tela real: lista de Histórico com 25 docume
 - `npm run dist` (instalador) não foi regenerado nesta fase; recomenda-se gerar um novo instalador antes do próximo release para embutir o novo `productName`/`shortcutName` acentuados.
 
 **PARADO conforme instruído.**
+
+## Ajuda integrada nas telas de importação (CONCLUÍDA)
+
+Ícone discreto de informação ao lado do título de Previsão e Relação, abrindo um modal acessível e rolável com a referência completa do relatório Protheus correspondente.
+
+### Implementação
+
+- `src/renderer/src/lib/importHelpContent.ts` - conteúdo estático (sem dependência de rede): relatório, código, caminho no menu, lista exata de colunas obrigatórias (nomes literais do Protheus/Smart View, sem correção de acento - devem casar com o export real), aviso específico da Previsão (ambiguidade do "Vencimento") e notas (campos opcionais da Relação; qual campo o total realmente usa). Espelha `references/input-contracts.md` - comentário no arquivo lembra de manter os dois sincronizados se o contrato mudar de novo.
+- `src/renderer/src/components/ImportHelp.tsx` - componente autocontido: ícone `Info` discreto (`aria-label` descritivo, tooltip curto "Ajuda") + modal (`role="dialog"`, `aria-modal`, `aria-labelledby`, foco movido para o diálogo ao abrir, fecha com Esc/clique no overlay/botão Fechar). Corpo rolável (`overflow-y: auto`) com cabeçalho/rodapé fixos. Botão "Copiar lista de campos" usa `navigator.clipboard.writeText` (API local do Chromium, sem internet) e mostra um toast de confirmação.
+- Integrado em `ImportPage.tsx` via o slot `actions` já existente de `PageHeader` - `<ImportHelp mode={mode} />` - sem precisar alterar `PageHeader.tsx`.
+
+### Bug encontrado e corrigido durante a validação visual real
+
+Ao abrir o app real (não só os testes) e comparar `.app-main.scrollWidth` entre páginas, a tela de Previsão/Relação (e só ela) apresentava uma barra de rolagem horizontal espúria. Causa: o tooltip do novo ícone (`data-tooltip="Ajuda sobre este relatório"`, texto longo) fica centralizado (`::after` com `transform: translateX(-50%)`) sobre um ícone posicionado na borda direita do cabeçalho (`margin-left: auto`) - mesmo com `opacity: 0`, o pseudo-elemento ainda conta para `scrollWidth`, empurrando o conteúdo além da largura visível. Corrigido de duas formas: (1) o tooltip deste ícone foi encurtado para "Ajuda" (consistente com os demais tooltips curtos do app); (2) regra defensiva nova em `App.css` (`.page-header__actions .icon-btn[data-tooltip]::after`) ancora o tooltip pela direita em vez de centralizar, para qualquer ícone futuro nessa posição. Confirmado via diagnóstico real (`scrollWidth === clientWidth` antes/depois, nas duas telas) e screenshot sem a barra espúria.
+
+### Testes
+
+Nova infraestrutura de teste de componentes React (inexistente até então - só havia testes de main process):
+
+- `vitest.config.ts` - adiciona o plugin `@vitejs/plugin-react` e passa a incluir `*.test.tsx`; ambiente único `jsdom` para toda a suíte (vitest 5 removeu o `environmentMatchGlobs` de configuração única; um ambiente compartilhado é suficiente pois os testes de main process não dependem de globals exclusivos do Node).
+- Novas dependências de desenvolvimento: `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`.
+- `importHelpContent.test.ts` - conteúdo: 12/13 campos exatos e sem duplicatas para cada modo, código/caminho corretos, aviso presente somente na Previsão, notas cobrindo os campos opcionais e a regra do total, formatação da lista para cópia.
+- `ImportHelp.test.tsx` - abertura (ícone fechado por padrão, abre ao clicar), fechamento (botão do cabeçalho, botão do rodapé, clique no overlay, tecla Esc - e que clique dentro do conteúdo NÃO fecha por engano), acessibilidade (`role="dialog"`, `aria-modal`, título associado via `aria-labelledby`), conteúdo completo de cada modo (relatório/código/caminho/13 ou 12 campos/aviso do Vencimento apenas na Previsão/notas), e a função de copiar (texto exato copiado para `navigator.clipboard`, toast de confirmação exibido).
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK |
+| `npm run lint` | OK - 0 erros, 2 avisos pré-existentes inalterados |
+| `npm run test` | OK - **189/189** testes (30 novos: 11 de conteúdo + 19 do modal) |
+| `npm run build` | OK |
+
+Validado visualmente no app real (Electron real, clique real): ícone visível e discreto ao lado do título em Previsão e Relação; modal abre com todo o conteúdo correto para cada modo; aviso do Vencimento destacado em amarelo somente na Previsão; lista rolável sem cortar nenhum campo; "Copiar lista de campos" copia e mostra toast; fecha corretamente. Nenhuma barra de rolagem espúria após a correção do tooltip.
+
+### Pendências / observações
+
+- `npm run dist` não foi regenerado (mudança é só de renderer/testes, sem impacto no instalador).
+
+**PARADO conforme instruído.**

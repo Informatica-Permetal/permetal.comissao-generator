@@ -20,6 +20,7 @@ import type { GenerateReportResult } from '@shared/types/pdf';
 import PageHeader from './PageHeader';
 import { useToast } from './ToastProvider';
 import { modeDisplayLabel } from '../lib/modeLabel';
+import ImportHelp from './ImportHelp';
 
 interface ImportPageProps {
   mode: ReportMode;
@@ -140,7 +141,7 @@ export default function ImportPage({
 
   return (
     <section>
-      <PageHeader icon={Icon} title={title} onBack={onBack} />
+      <PageHeader icon={Icon} title={title} onBack={onBack} actions={<ImportHelp mode={mode} />} />
 
       {(state.status === 'idle' || state.status === 'previewing' || state.status === 'previewError') && (
         <>

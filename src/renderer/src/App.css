@@ -159,6 +159,16 @@ input, select {
 .icon-btn[data-tooltip]:hover::after,
 .icon-btn[data-tooltip]:focus-visible::after { opacity: 1; }
 
+/* An icon at the right edge of a header (e.g. page-header actions) centers its
+   tooltip off the right edge of the scrollable content, which - even fully
+   transparent - still widens scrollWidth and forces a spurious horizontal
+   scrollbar. Anchor from the right instead of centering for this position. */
+.page-header__actions .icon-btn[data-tooltip]::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
 /* ==========================================================================
    App shell / sidebar
    ========================================================================== */
@@ -806,3 +816,135 @@ input, select {
 .dialog__title { font-size: 1rem; font-weight: 700; margin-bottom: var(--space-2); }
 .dialog__message { font-size: 0.85rem; color: var(--color-text-secondary); line-height: 1.5; }
 .dialog__actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6); }
+
+/* ==========================================================================
+   Import help modal
+   ========================================================================== */
+.help-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+  padding: var(--space-5);
+  animation: overlay-in 0.12s ease;
+}
+.help-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.help-modal:focus-visible { outline: none; }
+.help-modal__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  flex: none;
+}
+.help-modal__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+  flex: none;
+}
+.help-modal__title { flex: 1; font-size: 1rem; font-weight: 700; color: var(--color-text); }
+.help-modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.help-modal__field { display: flex; flex-direction: column; gap: 2px; font-size: 0.85rem; }
+.help-modal__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--color-text-tertiary);
+}
+.help-modal__value { color: var(--color-text); }
+.help-modal__code {
+  align-self: flex-start;
+  font-family: Consolas, 'SF Mono', Menlo, monospace;
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+.help-modal__path {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+.help-modal__path-sep { color: var(--color-text-tertiary); margin: 0 2px; vertical-align: middle; }
+.help-modal__warning { margin: 0; }
+.help-modal__section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: var(--space-2);
+}
+.help-modal__field-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  counter-reset: help-field;
+}
+.help-modal__field-list li { counter-increment: help-field; }
+.help-modal__field-list li::before {
+  content: counter(help-field) '.';
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+  margin-right: var(--space-2);
+}
+.help-modal__field-list code {
+  font-family: Consolas, 'SF Mono', Menlo, monospace;
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+.help-modal__notes {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+.help-modal__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  flex: none;
+}

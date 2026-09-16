@@ -1237,3 +1237,72 @@ Novos/estendidos: `src/main/reports/common/grouping.test.ts` (novo), `src/main/s
 - O achado de baixa severidade sobre tipagem estrutural entre `GeneratedPdf`/`GeneratedPdfInfo` (documentado acima) foi conscientemente deixado como está, por ser um padrão já usado em outras partes do código.
 
 **PARADO conforme instruído.**
+
+## FASE 6 - Conteúdo final dos PDFs: cabeçalho institucional, meta grid, período de análise e paginação (CONCLUÍDA)
+
+A FASE 5 deixou o PDF consolidado explicitamente "funcional, não polido". Esta fase implementa o conteúdo final de ambos os modos (separado e consolidado) - cabeçalho institucional completo, bloco de metadados, período de análise não-filtrante, e as regras de paginação necessárias para o consolidado - preservando o pipeline de geração já existente (viewmodels, templates, migração, agrupamento) sem alterar nenhuma regra financeira.
+
+### Cabeçalho institucional (ciente de grupo corporativo)
+
+- `src/main/pdf/types.ts` - novo `PdfGroupInfo { displayName; legalName: string | null; headquartersAddress: CompanyAddress | null }`; `PdfCompanyInfo.group: PdfGroupInfo | null`.
+- `src/main/pdf/companyInfo.ts` - `toPdfCompanyInfo(profile, group = null)` agora aceita o `CompanyGroup` resolvido e monta `group` a partir dele.
+- `src/main/pdf/htmlTemplate/layout.ts` - `buildDocumentHeaderHtml(company)` passa a ramificar em `company.group`: **com grupo**, mostra nome do grupo (título), razão social do grupo (linha secundária, omitida se idêntica ao nome), `Matriz: <endereço da matriz>` (omitido se a matriz não tiver endereço cadastrado), `Filial: <nome da própria filial>`, `CNPJ: <CNPJ da própria filial, nunca o da matriz>`; **sem grupo**, mantém o comportamento pré-existente (`legalName ?? brandLabel ?? displayName` + CNPJ/endereço próprios), sem nenhuma mudança de comportamento para esse caso. Isso cobre os 6 campos exigidos: grupo/organização, razão social da matriz, endereço da matriz, filial, CNPJ da filial, marca/logo (logo continua vindo de `logoPath`, inalterado).
+
+### Bloco de metadados do relatório (grade de 6 campos)
+
+- `buildDocumentMetaHtml(identity, company, generatedAtLabel)` (assinatura ganhou o parâmetro `company`) - grade com Vendedor (+código), Empresa/Filial (`<marca> / <filial>`, ou só a filial quando não há marca), Código da Filial, Moeda (fixo "REAL" - não vem do Protheus, é sempre a mesma), Período de Análise, Data de Geração.
+- `buildConsolidatedMetaHtml(identity, generatedAtLabel)` - reescrito para mostrar **somente** 4 campos de nível de documento (Vendedor+código, Moeda, Período de Análise, Data de Geração) - nunca um código de filial, nunca uma empresa específica, seguindo a regra "não usar uma filial específica como identidade global do consolidado".
+
+### Período de análise (novo campo, puramente de exibição, nunca filtra)
+
+- `src/main/pdf/format.ts` - `computePeriodoAnalise(dates: readonly (Date | null)[]): string`: ignora `null`/datas inválidas, retorna `"<menor> a <maior>"` formatadas em `dd/MM/yyyy`, ou `"Não informado"` se nenhuma data for válida.
+- Relação usa `dataDeBaixaDoTitulo` de todas as linhas; Previsão usa `vencimento` de todas as linhas; no consolidado, considera as linhas de **todas** as filiais do vendedor (não só a primeira) - `src/main/pdf/consolidatedViewModel.ts` faz `flatMap` sobre `branches` antes de calcular.
+- Garantia central testada explicitamente (`previsaoViewModel.test.ts`, `relacaoViewModel.test.ts`, `consolidatedViewModel.test.ts`): linhas com data nula, muito antiga ou muito futura continuam **todas** no documento e contribuem para o total - o período nunca é usado para excluir uma linha, é somente um resumo textual.
+
+### PDF consolidado - "nenhuma filial é a identidade global"
+
+- `src/main/pdf/htmlTemplate/consolidatedTemplate.ts` - reescrito: removida a antiga leitura de `branches[0].company` como identidade do documento inteiro. O topo do documento (título + `buildConsolidatedMetaHtml`) carrega somente dado de nível de vendedor/documento. Cada seção de filial chama a **mesma** `buildDocumentHeaderHtml(branch.company)` usada no modo separado, dando a cada filial seu cabeçalho institucional completo e independente - inclusive quando filiais do mesmo vendedor pertencem a marcas comerciais diferentes dentro do mesmo grupo corporativo (validado com dado real: filiais 0103/0104 com marca "Permetal" e 0105 com marca "Metalgrade", todas corretamente sob o mesmo grupo "Permetal S.A. Metais Perfurados").
+- `buildConsolidatedPrintHeaderTemplate(modeTitle, identity)` - assinatura simplificada (parâmetro `company` removido) - o cabeçalho de impressão do Chromium no consolidado também nunca mostra empresa/CNPJ, só `"<modo> - Consolidado por Vendedor"` / `"Vend. <nome> (<código>) - N filiais"`.
+- Títulos exatos conforme especificação: `RELAÇÃO DE COMISSÕES — CONSOLIDADO POR VENDEDOR` / `PREVISÃO DE COMISSÕES — CONSOLIDADO POR VENDEDOR` (em-dash); total final rotulado exatamente `TOTAL DA PREVISÃO` / `TOTAL DA COMISSÃO` (antes dizia "Total Consolidado da..."); assinatura e declaração aparecem **uma única vez**, no fim do documento - nunca por filial.
+
+### Paginação (A4 retrato)
+
+- `buildBranchTableContextRowHtml(branchCode, branchName, columnCount)` - nova linha `<tr class="branch-context-row">` inserida dentro do `<thead>` de cada tabela de filial do consolidado (antes da linha de cabeçalho de coluna). Como `thead { display: table-header-group }`, essa linha repete automaticamente em **toda** página que a tabela daquela filial ocupar - é o mecanismo usado para identificar a filial em páginas de continuação, já que o cabeçalho de impressão do Chromium é estático e o letterhead completo da filial aparece só uma vez por seção.
+- `src/main/pdf/htmlTemplate/baseCss.ts` - `break-inside: avoid; page-break-inside: avoid` (mais `break-after: avoid-page`) adicionado a `.doc-header` (nunca fica órfão/cortado no topo/fim de página) e a `.doc-meta`; a mesma proteção já existia em `.total-block` e `.signature` (herdadas, sem mudança).
+- **Bug real encontrado e corrigido via validação com dado real de 230 linhas/9 páginas**: `.subtotal-block` não tinha `break-inside: avoid`, ao contrário do `.total-block` irmão - o Chromium partiu o bloco no meio, deixando o rótulo "SUBTOTAL - FILIAL 0104" sozinho no fim de uma página e o valor "R$ 1.716,53" sozinho no início da próxima. Corrigido adicionando a mesma proteção a `.subtotal-block`. Re-verificado lendo o PDF completo de 9 páginas após o fix: rótulo e valor agora aparecem juntos, corretamente, na mesma página.
+
+### Deliberadamente não implementado (fora do escopo autorizado)
+
+O PDF de referência (`Exemplo visual Relatório Comissões.pdf`, anexado pelo usuário) usa um CNPJ placeholder (`XX.XXX.XXX/XXXX-XX`) e inclui campos/KPIs não pedidos pela especificação escrita: "Competência", "Data de referência", e três caixas de KPI ("Valor total dos títulos", "Valor base para baixa", "Comissão prevista total"). Nenhum desses foi replicado - a especificação escrita autoriza apenas um único campo de total (`TOTAL DA PREVISÃO`/`TOTAL DA COMISSÃO`), e a regra do projeto de nunca inventar dado/filtro externo e nunca exibir KPIs não solicitados se aplica também ao mockup visual, que serviu apenas de referência de estilo, não de conteúdo a copiar literalmente.
+
+### Validação com dado real (4 amostras)
+
+Usando os dois arquivos reais anexados via um hook de depuração temporário (removido ao final da fase, `git diff src/main/index.ts` confirmado vazio), foram geradas e inspecionadas diretamente (conteúdo completo, não só visualmente) 4 amostras reais:
+
+1. **Separado - Previsão**: FERNANDO FILHO (000103), filial única 0104, 19 linhas reais - cabeçalho mostrou corretamente "Permetal S.A. Metais Perfurados" / "Permetal S A Metais Perfurados" / "Matriz: Rodovia Anhanguera Km 298+193 Mts..." / "Filial: PERMETAL CRAVINHOS" / "CNPJ: 61.139.192/0004-59"; período "06/08/2026 a 07/08/2026" calculado corretamente a partir do Vencimento real.
+2. **Consolidado 2 filiais - Previsão**: ADEMIR FURLANETO (000001), filiais 0103+0104.
+3. **Consolidado 3 filiais - Relação**: RODRIGO LEAL MIGNELLA (000097), filiais 0103+0104+0105 - topo do documento sem nenhuma identidade de filial; cada seção com seu próprio letterhead completo, todas sob o mesmo grupo Permetal; período "04/08/2026 a 02/09/2026" cobrindo as 3 filiais.
+4. **Multipágina consolidado - Relação**: RENATO FURLANETO (000004), filiais 0103(162)+0104(65)+0105(3) = 230 linhas reais, 9 páginas - confirmado cabeçalho de tabela repetindo em toda página de continuação, linha de contexto "Filial 0103 - ..." identificando corretamente a filial em cada página de continuação, nenhum cabeçalho de seção órfão entre filiais, subtotal e total corretos (R$ 2.060,64 + R$ 1.716,53 + R$ 33,81 = R$ 3.810,98 no `TOTAL DA COMISSÃO` final), assinatura única no fim.
+
+As 4 amostras foram entregues ao usuário via anexo para revisão visual.
+
+### Testes automatizados
+
+Novos/estendidos: `src/main/pdf/format.test.ts` (5 testes de `computePeriodoAnalise`), `src/main/pdf/htmlTemplate/layout.test.ts` (novo, 11 testes: cabeçalho com/sem grupo, CNPJ da própria filial nunca da matriz, dedup de nome/razão social idênticos, sem endereço de matriz inventado, grade de 6 campos, fallback de marca, "Não informado", topo do consolidado nunca menciona filial, cabeçalho de impressão do consolidado nunca mostra CNPJ, conteúdo da linha de contexto de filial), `src/main/pdf/previsaoViewModel.test.ts` e `relacaoViewModel.test.ts` (3 testes novos cada, incluindo o teste "nunca filtra linhas"), `src/main/pdf/consolidatedViewModel.test.ts` (novo, grupo resolvido por filial independentemente, período considera todas as filiais, subtotais nunca recalculados).
+
+### Testes técnicos
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK |
+| `npm run lint` | OK - 0 erros, 2 avisos pré-existentes inalterados |
+| `npm run test` | OK - **281/281** testes (27 novos) |
+| `npm run build` | OK |
+
+### Pendências / observações
+
+- `npm run dist` não foi regenerado (mudança não afeta o instalador em si).
+- Os campos/KPIs extras do mockup visual (Competência, Data de referência, 3 caixas de KPI) foram deliberadamente não implementados - ver seção acima.
+- Nenhuma nova ação de UI foi adicionada nesta fase; o conteúdo final do PDF é gerado pelo mesmo pipeline de geração já existente (FASE 5), sem nenhuma mudança de UX de escolha separado/consolidado.
+
+**PARADO conforme instruído.**

@@ -1,8 +1,8 @@
-import type { CompanyProfile } from '@shared/types/companyProfile';
+import type { CompanyGroup, CompanyProfile } from '@shared/types/companyProfile';
 import type { DocumentGroup } from '../reports/common/grouping';
 import type { PrevisaoParsedRow } from '../reports/previsao/parser';
 import { toPdfCompanyInfo } from './companyInfo';
-import { formatCurrencyBRL, formatDateBR } from './format';
+import { computePeriodoAnalise, formatCurrencyBRL, formatDateBR } from './format';
 import type { PrevisaoPdfRow, PrevisaoPdfSection, PrevisaoPdfViewModel } from './types';
 
 const UNCLASSIFIED_LABEL = '(sem classificação)';
@@ -10,6 +10,7 @@ const UNCLASSIFIED_LABEL = '(sem classificação)';
 export function buildPrevisaoViewModel(
   group: DocumentGroup<PrevisaoParsedRow>,
   company: CompanyProfile,
+  lookupCompanyGroup: (groupKey: string | null) => CompanyGroup | null,
   generatedAt: Date
 ): PrevisaoPdfViewModel {
   return {
@@ -19,9 +20,11 @@ export function buildPrevisaoViewModel(
       sellerName: group.sellerName,
       branchCode: group.branchCode,
       branchName: group.branchName || company.displayName,
-      generatedAt
+      generatedAt,
+      // Previsao: o unico campo de data autorizado para o periodo e "Vencimento".
+      periodoAnalise: computePeriodoAnalise(group.rows.map((row) => row.vencimento))
     },
-    company: toPdfCompanyInfo(company),
+    company: toPdfCompanyInfo(company, lookupCompanyGroup(company.groupKey)),
     sections: groupByClassification(group.rows),
     rowCount: group.rows.length,
     total: formatCurrencyBRL(group.total)

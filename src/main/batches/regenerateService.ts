@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import type { DatabaseSync } from 'node:sqlite';
-import type { CompanyProfile } from '@shared/types/companyProfile';
+import type { CompanyGroup, CompanyProfile } from '@shared/types/companyProfile';
 import type { RegenerateResult } from '@shared/types/history';
 import { findUnconfiguredBranchCodes } from '../companies/branchConfiguration';
 import { parsePrevisaoFile } from '../reports/previsao/parser';
@@ -17,6 +17,7 @@ export interface RegenerateDeps {
   db: DatabaseSync;
   reportRoot: string;
   lookupCompanyProfile: (branchCode: string) => CompanyProfile | null;
+  lookupCompanyGroup?: (groupKey: string | null) => CompanyGroup | null;
   renderPdf: (html: string, options: RenderPdfOptions) => Promise<Buffer>;
 }
 
@@ -45,7 +46,7 @@ export async function regenerateBatch(batchId: string, deps: RegenerateDeps): Pr
 }
 
 async function regenerateBatchLocked(batchId: string, deps: RegenerateDeps): Promise<RegenerateResult> {
-  const { db, reportRoot, lookupCompanyProfile, renderPdf } = deps;
+  const { db, reportRoot, lookupCompanyProfile, lookupCompanyGroup, renderPdf } = deps;
 
   const batch = getBatchById(db, batchId);
   if (!batch) {
@@ -78,6 +79,7 @@ async function regenerateBatchLocked(batchId: string, deps: RegenerateDeps): Pro
       db,
       reportRoot,
       lookupCompanyProfile,
+      lookupCompanyGroup,
       renderPdf,
       modeBySeller
     });

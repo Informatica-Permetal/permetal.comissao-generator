@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs';
-import type { CompanyProfile } from '@shared/types/companyProfile';
+import type { CompanyGroup, CompanyProfile } from '@shared/types/companyProfile';
 import type { ReportMode } from '@shared/constants/folders';
 import type { GroupingMode } from '@shared/types/history';
 import type { ConsolidatedSellerGroup, DocumentGroup } from '../reports/common/grouping';
@@ -52,11 +52,15 @@ export interface GenerateReportPdfsDeps {
   reportRoot: string;
   generatedAt: Date;
   lookupCompanyProfile: (branchCode: string) => CompanyProfile | null;
+  /** Absent (or a branch with no groupKey) resolves to no group - the header then falls back to the branch's own identity alone. */
+  lookupCompanyGroup?: (groupKey: string | null) => CompanyGroup | null;
   /** Per-seller grouping choice; a seller absent (or with a single branch) always publishes `separate_by_branch`. Omitted entirely = everyone separado, preserving the pre-Fase-5 default. */
   modeBySeller?: ReadonlyMap<string, GroupingMode>;
   /** Injected so orchestration can be unit-tested without a real Electron BrowserWindow. */
   renderPdf: (html: string, options: RenderPdfOptions) => Promise<Buffer>;
 }
+
+const NO_GROUP: (groupKey: string | null) => CompanyGroup | null = () => null;
 
 type SeparatedViewModel = { identity: PdfDocumentIdentity; total: string; rowCount: number };
 
@@ -69,7 +73,14 @@ interface ConsolidatedBranchBase {
 }
 
 type ConsolidatedViewModel = {
-  identity: { mode: 'Previsao' | 'Relacao'; sellerCode: string; sellerName: string; branchCodes: string[]; generatedAt: Date };
+  identity: {
+    mode: 'Previsao' | 'Relacao';
+    sellerCode: string;
+    sellerName: string;
+    branchCodes: string[];
+    generatedAt: Date;
+    periodoAnalise: string;
+  };
   total: string;
   rowCount: number;
   branches: ConsolidatedBranchBase[];
@@ -79,18 +90,24 @@ async function generateSeparateGroupPdfs<TRow, TViewModel extends SeparatedViewM
   groups: readonly DocumentGroup<TRow>[],
   mode: ReportMode,
   modeTitle: string,
-  buildViewModel: (group: DocumentGroup<TRow>, company: CompanyProfile, generatedAt: Date) => TViewModel,
+  buildViewModel: (
+    group: DocumentGroup<TRow>,
+    company: CompanyProfile,
+    lookupCompanyGroup: (groupKey: string | null) => CompanyGroup | null,
+    generatedAt: Date
+  ) => TViewModel,
   buildHtml: (viewModel: TViewModel, generatedAtLabel: string) => string,
   deps: GenerateReportPdfsDeps
 ): Promise<GeneratedPdf[]> {
   const { reportRoot, generatedAt, lookupCompanyProfile, renderPdf } = deps;
+  const lookupCompanyGroup = deps.lookupCompanyGroup ?? NO_GROUP;
   const generatedAtLabel = formatGeneratedAtLabel(generatedAt);
   const geradosDir = resolveGeradosDir(reportRoot, mode);
   const generated: GeneratedPdf[] = [];
 
   for (const group of groups) {
     const company = lookupCompanyProfile(group.branchCode) as CompanyProfile;
-    const viewModel = buildViewModel(group, company, generatedAt);
+    const viewModel = buildViewModel(group, company, lookupCompanyGroup, generatedAt);
     const html = buildHtml(viewModel, generatedAtLabel);
 
     const pdfBuffer = await renderPdf(html, {
@@ -131,23 +148,24 @@ async function generateConsolidatedGroupPdfs<TRow, TViewModel extends Consolidat
   buildViewModel: (
     group: ConsolidatedSellerGroup<TRow>,
     lookupCompanyProfile: (branchCode: string) => CompanyProfile | null,
+    lookupCompanyGroup: (groupKey: string | null) => CompanyGroup | null,
     generatedAt: Date
   ) => TViewModel,
   buildHtml: (viewModel: TViewModel, generatedAtLabel: string) => string,
   deps: GenerateReportPdfsDeps
 ): Promise<GeneratedPdf[]> {
   const { reportRoot, generatedAt, lookupCompanyProfile, renderPdf } = deps;
+  const lookupCompanyGroup = deps.lookupCompanyGroup ?? NO_GROUP;
   const generatedAtLabel = formatGeneratedAtLabel(generatedAt);
   const geradosDir = resolveGeradosDir(reportRoot, mode);
   const generated: GeneratedPdf[] = [];
 
   for (const group of consolidatedGroups) {
-    const viewModel = buildViewModel(group, lookupCompanyProfile, generatedAt);
+    const viewModel = buildViewModel(group, lookupCompanyProfile, lookupCompanyGroup, generatedAt);
     const html = buildHtml(viewModel, generatedAtLabel);
-    const primaryCompany = viewModel.branches[0].company;
 
     const pdfBuffer = await renderPdf(html, {
-      headerTemplate: buildConsolidatedPrintHeaderTemplate(primaryCompany, modeTitle, viewModel.identity),
+      headerTemplate: buildConsolidatedPrintHeaderTemplate(modeTitle, viewModel.identity),
       footerTemplate: buildPrintFooterTemplate()
     });
 

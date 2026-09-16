@@ -1,9 +1,11 @@
 import Decimal from 'decimal.js';
 import { describe, expect, it } from 'vitest';
-import type { CompanyProfile } from '@shared/types/companyProfile';
+import type { CompanyGroup, CompanyProfile } from '@shared/types/companyProfile';
 import type { DocumentGroup } from '../reports/common/grouping';
 import type { PrevisaoParsedRow } from '../reports/previsao/parser';
 import { buildPrevisaoViewModel } from './previsaoViewModel';
+
+const NO_GROUP = (): CompanyGroup | null => null;
 
 const COMPANY: CompanyProfile = {
   branchCode: '0103',
@@ -61,6 +63,7 @@ describe('buildPrevisaoViewModel', () => {
         row({ classificacao: 'Titulo original' })
       ]),
       COMPANY,
+      NO_GROUP,
       new Date()
     );
     expect(vm.sections.map((s) => s.classificacao)).toEqual(['Titulo original', 'Pedido de venda']);
@@ -70,7 +73,7 @@ describe('buildPrevisaoViewModel', () => {
   });
 
   it('classificacao desconhecida cria sua propria secao sem perder a linha', () => {
-    const vm = buildPrevisaoViewModel(group([row({ classificacao: 'Nova Classificacao' })]), COMPANY, new Date());
+    const vm = buildPrevisaoViewModel(group([row({ classificacao: 'Nova Classificacao' })]), COMPANY, NO_GROUP, new Date());
     expect(vm.sections).toHaveLength(1);
     expect(vm.sections[0].classificacao).toBe('Nova Classificacao');
     expect(vm.sections[0].rows).toHaveLength(1);
@@ -83,6 +86,7 @@ describe('buildPrevisaoViewModel', () => {
         row({ dadosTitulo: null, dadosPedido: null })
       ]),
       COMPANY,
+      NO_GROUP,
       new Date()
     );
     expect(vm.sections[0].rows[0].documento).toBe('TIT-1 / PED-1');
@@ -93,13 +97,47 @@ describe('buildPrevisaoViewModel', () => {
     const vm = buildPrevisaoViewModel(
       group([row({ comissaoTotalLiquido: new Decimal('30.80') }), row({ comissaoTotalLiquido: new Decimal('7.93129527965909') })]),
       COMPANY,
+      NO_GROUP,
       new Date()
     );
     expect(vm.total).toBe('R$ 38,73');
   });
 
   it('usa o nome da filial vindo da propria linha, nunca inventa outro', () => {
-    const vm = buildPrevisaoViewModel(group([row()]), COMPANY, new Date());
+    const vm = buildPrevisaoViewModel(group([row()]), COMPANY, NO_GROUP, new Date());
     expect(vm.identity.branchName).toBe('PERMETAL SAO PAULO');
+  });
+});
+
+describe('buildPrevisaoViewModel - periodo de analise', () => {
+  it('calcula o periodo a partir do menor e maior Vencimento valido', () => {
+    const vm = buildPrevisaoViewModel(
+      group([
+        row({ vencimento: new Date(Date.UTC(2026, 7, 20)) }),
+        row({ vencimento: new Date(Date.UTC(2026, 5, 1)) }),
+        row({ vencimento: new Date(Date.UTC(2026, 8, 10)) })
+      ]),
+      COMPANY,
+      NO_GROUP,
+      new Date()
+    );
+    expect(vm.identity.periodoAnalise).toBe('01/06/2026 a 10/09/2026');
+  });
+
+  it('mostra "Não informado" quando nenhuma linha tem Vencimento valido', () => {
+    const vm = buildPrevisaoViewModel(group([row({ vencimento: null })]), COMPANY, NO_GROUP, new Date());
+    expect(vm.identity.periodoAnalise).toBe('Não informado');
+  });
+
+  it('o periodo de analise NUNCA filtra linhas - todas continuam no documento e no total, independente da data', () => {
+    const veryOldRow = row({ vencimento: new Date(Date.UTC(2020, 0, 1)), comissaoTotalLiquido: new Decimal('50') });
+    const veryNewRow = row({ vencimento: new Date(Date.UTC(2030, 11, 31)), comissaoTotalLiquido: new Decimal('75') });
+    const noDateRow = row({ vencimento: null, comissaoTotalLiquido: new Decimal('25') });
+    const vm = buildPrevisaoViewModel(group([veryOldRow, veryNewRow, noDateRow]), COMPANY, NO_GROUP, new Date());
+
+    expect(vm.rowCount).toBe(3);
+    expect(vm.sections[0].rows).toHaveLength(3);
+    expect(vm.total).toBe('R$ 150,00'); // 50 + 75 + 25, nenhuma linha descartada
+    expect(vm.identity.periodoAnalise).toBe('01/01/2020 a 31/12/2030');
   });
 });

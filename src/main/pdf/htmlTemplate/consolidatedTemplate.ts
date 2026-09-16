@@ -2,7 +2,7 @@ import { escapeHtml } from '../format';
 import type { PrevisaoConsolidatedPdfViewModel, RelacaoConsolidatedPdfViewModel } from '../types';
 import { BASE_CSS } from './baseCss';
 import {
-  buildBranchSectionHeadingHtml,
+  buildBranchTableContextRowHtml,
   buildConsolidatedMetaHtml,
   buildDocumentHeaderHtml,
   buildSignatureBlockHtml,
@@ -12,12 +12,13 @@ import {
 } from './layout';
 
 /**
- * Consolidated PDFs (Fase 5: one document per seller spanning several
- * branches) are deliberately NOT a polished redesign yet - visual finishing
- * is an explicitly deferred future phase. This renders each included
- * branch as its own letterhead + table + subtotal section, back to back in
- * one document, followed by a single grand total. Correct and complete,
- * not decorated.
+ * Consolidated PDF - one document per seller spanning several branches.
+ * Deliberately does NOT use any one branch as the document's global
+ * identity: the top block carries only seller/moeda/período/data, and each
+ * included branch gets its own full institutional section (own letterhead,
+ * own table, own optional subtotal), in stable (first-appearance) order. A
+ * single grand total and a single signature block close the document -
+ * never one per branch.
  */
 
 interface PrevisaoColumnDefinition {
@@ -51,7 +52,6 @@ export function buildPrevisaoConsolidatedHtmlDocument(
   vm: PrevisaoConsolidatedPdfViewModel,
   generatedAtLabel: string
 ): string {
-  const firstCompany = vm.branches[0].company;
   const branchesHtml = vm.branches
     .map((branch) => {
       const rowsHtml = branch.sections
@@ -78,12 +78,13 @@ export function buildPrevisaoConsolidatedHtmlDocument(
 
       return `
         <section class="branch-section">
-          ${buildBranchSectionHeadingHtml(branch.branchCode, branch.branchName)}
+          ${buildDocumentHeaderHtml(branch.company)}
           <table>
             <colgroup>
               ${PREVISAO_COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
             </colgroup>
             <thead>
+              ${buildBranchTableContextRowHtml(branch.branchCode, branch.branchName, PREVISAO_COLUMNS.length)}
               <tr>
                 ${PREVISAO_COLUMNS.map((c) => `<th${c.numeric ? ' class="num"' : ''}>${escapeHtml(c.label)}</th>`).join('')}
               </tr>
@@ -106,11 +107,10 @@ export function buildPrevisaoConsolidatedHtmlDocument(
     <style>${BASE_CSS}</style>
   </head>
   <body>
-    ${buildDocumentHeaderHtml(firstCompany)}
-    ${buildTitleHtml('Previsão de Comissões - Consolidado por Vendedor', 'Relatório de previsão para conferência')}
+    ${buildTitleHtml('Previsão de Comissões — Consolidado por Vendedor', 'Relatório de previsão para conferência')}
     ${buildConsolidatedMetaHtml(vm.identity, generatedAtLabel)}
     ${branchesHtml}
-    ${buildTotalBlockHtml('Total Consolidado da Previsão', vm.total)}
+    ${buildTotalBlockHtml('Total da Previsão', vm.total)}
     ${buildSignatureBlockHtml()}
   </body>
 </html>`;
@@ -120,7 +120,6 @@ export function buildRelacaoConsolidatedHtmlDocument(
   vm: RelacaoConsolidatedPdfViewModel,
   generatedAtLabel: string
 ): string {
-  const firstCompany = vm.branches[0].company;
   const branchesHtml = vm.branches
     .map((branch) => {
       const rowsHtml = branch.rows
@@ -141,12 +140,13 @@ export function buildRelacaoConsolidatedHtmlDocument(
 
       return `
         <section class="branch-section">
-          ${buildBranchSectionHeadingHtml(branch.branchCode, branch.branchName)}
+          ${buildDocumentHeaderHtml(branch.company)}
           <table>
             <colgroup>
               ${RELACAO_COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
             </colgroup>
             <thead>
+              ${buildBranchTableContextRowHtml(branch.branchCode, branch.branchName, RELACAO_COLUMNS.length)}
               <tr>
                 ${RELACAO_COLUMNS.map((c) => `<th${c.numeric ? ' class="num"' : ''}>${escapeHtml(c.label)}</th>`).join('')}
               </tr>
@@ -169,11 +169,10 @@ export function buildRelacaoConsolidatedHtmlDocument(
     <style>${BASE_CSS}</style>
   </head>
   <body>
-    ${buildDocumentHeaderHtml(firstCompany)}
-    ${buildTitleHtml('Relação de Comissões - Consolidado por Vendedor', 'Comissões para conferência e pagamento')}
+    ${buildTitleHtml('Relação de Comissões — Consolidado por Vendedor', 'Comissões para conferência e pagamento')}
     ${buildConsolidatedMetaHtml(vm.identity, generatedAtLabel)}
     ${branchesHtml}
-    ${buildTotalBlockHtml('Total Consolidado da Comissão', vm.total)}
+    ${buildTotalBlockHtml('Total da Comissão', vm.total)}
     ${buildSignatureBlockHtml()}
   </body>
 </html>`;

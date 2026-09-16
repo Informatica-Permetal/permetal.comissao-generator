@@ -53,7 +53,7 @@ export function buildRelacaoHtmlDocument(vm: RelacaoPdfViewModel, generatedAtLab
   <body>
     ${buildDocumentHeaderHtml(vm.company)}
     ${buildTitleHtml('Relação de Comissões', 'Comissões para conferência e pagamento')}
-    ${buildDocumentMetaHtml(vm.identity, generatedAtLabel)}
+    ${buildDocumentMetaHtml(vm.identity, vm.company, generatedAtLabel)}
     <table>
       <colgroup>
         ${COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}

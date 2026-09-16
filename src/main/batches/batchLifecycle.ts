@@ -2,7 +2,7 @@ import { existsSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import type { CompanyProfile } from '@shared/types/companyProfile';
+import type { CompanyGroup, CompanyProfile } from '@shared/types/companyProfile';
 import type { ReportMode } from '@shared/constants/folders';
 import type { GroupingChoices, SourceKind } from '@shared/types/import';
 import type { GroupingMode } from '@shared/types/history';
@@ -46,6 +46,8 @@ export interface RunBatchGenerationDeps {
   db: DatabaseSync;
   reportRoot: string;
   lookupCompanyProfile: (branchCode: string) => CompanyProfile | null;
+  /** Absent (or a branch with no groupKey) resolves to no group - the PDF header then falls back to the branch's own identity alone. */
+  lookupCompanyGroup?: (groupKey: string | null) => CompanyGroup | null;
   appVersion: string;
   /** Injected so this can be unit-tested without a real Electron BrowserWindow. */
   renderPdf: (html: string, options: RenderPdfOptions) => Promise<Buffer>;
@@ -57,6 +59,7 @@ export interface PublishDeps {
   db: DatabaseSync;
   reportRoot: string;
   lookupCompanyProfile: (branchCode: string) => CompanyProfile | null;
+  lookupCompanyGroup?: (groupKey: string | null) => CompanyGroup | null;
   renderPdf: (html: string, options: RenderPdfOptions) => Promise<Buffer>;
   /** Per-seller grouping choice; a seller absent (or with a single branch) always publishes `separate_by_branch`. */
   modeBySeller?: ReadonlyMap<string, GroupingMode>;
@@ -78,11 +81,18 @@ export async function publishGeneratedDocuments(
   generatedAt: Date,
   deps: PublishDeps
 ): Promise<GenerateReportResult> {
-  const { db, reportRoot, lookupCompanyProfile, renderPdf, modeBySeller } = deps;
+  const { db, reportRoot, lookupCompanyProfile, lookupCompanyGroup, renderPdf, modeBySeller } = deps;
 
   evacuateGeradosToHistorico(db, reportRoot, mode);
 
-  const genDeps: GenerateReportPdfsDeps = { reportRoot, generatedAt, lookupCompanyProfile, renderPdf, modeBySeller };
+  const genDeps: GenerateReportPdfsDeps = {
+    reportRoot,
+    generatedAt,
+    lookupCompanyProfile,
+    lookupCompanyGroup,
+    renderPdf,
+    modeBySeller
+  };
   const result =
     mode === 'Previsao'
       ? await generatePrevisaoPdfs(parseResult as PrevisaoParseResult, genDeps)
@@ -162,7 +172,7 @@ async function runBatchGenerationLocked(
   deps: RunBatchGenerationDeps
 ): Promise<GenerateReportResult> {
   const { mode, batchId, sourcePath, sourceKind, workspaceFilePath, groupingChoices } = params;
-  const { db, reportRoot, lookupCompanyProfile, appVersion, renderPdf } = deps;
+  const { db, reportRoot, lookupCompanyProfile, lookupCompanyGroup, appVersion, renderPdf } = deps;
   const modeBySeller = new Map(Object.entries(groupingChoices ?? {}));
 
   const parseResult =
@@ -195,6 +205,7 @@ async function runBatchGenerationLocked(
       db,
       reportRoot,
       lookupCompanyProfile,
+      lookupCompanyGroup,
       renderPdf,
       modeBySeller
     });

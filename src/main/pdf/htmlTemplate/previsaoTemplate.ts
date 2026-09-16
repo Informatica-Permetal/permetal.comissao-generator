@@ -59,7 +59,7 @@ export function buildPrevisaoHtmlDocument(vm: PrevisaoPdfViewModel, generatedAtL
   <body>
     ${buildDocumentHeaderHtml(vm.company)}
     ${buildTitleHtml('Previsão de Comissões', 'Relatório de previsão para conferência')}
-    ${buildDocumentMetaHtml(vm.identity, generatedAtLabel)}
+    ${buildDocumentMetaHtml(vm.identity, vm.company, generatedAtLabel)}
     <table>
       <colgroup>
         ${COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}

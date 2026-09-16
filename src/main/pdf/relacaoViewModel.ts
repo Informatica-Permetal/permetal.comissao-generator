@@ -1,13 +1,14 @@
-import type { CompanyProfile } from '@shared/types/companyProfile';
+import type { CompanyGroup, CompanyProfile } from '@shared/types/companyProfile';
 import type { DocumentGroup } from '../reports/common/grouping';
 import type { RelacaoParsedRow } from '../reports/relacao/parser';
 import { toPdfCompanyInfo } from './companyInfo';
-import { formatCurrencyBRL, formatDateBR, formatPercent } from './format';
+import { computePeriodoAnalise, formatCurrencyBRL, formatDateBR, formatPercent } from './format';
 import type { RelacaoPdfRow, RelacaoPdfViewModel } from './types';
 
 export function buildRelacaoViewModel(
   group: DocumentGroup<RelacaoParsedRow>,
   company: CompanyProfile,
+  lookupCompanyGroup: (groupKey: string | null) => CompanyGroup | null,
   generatedAt: Date
 ): RelacaoPdfViewModel {
   return {
@@ -17,9 +18,11 @@ export function buildRelacaoViewModel(
       sellerName: group.sellerName,
       branchCode: group.branchCode,
       branchName: company.displayName,
-      generatedAt
+      generatedAt,
+      // Relacao: o unico campo de data autorizado para o periodo e "Data de Baixa do Titulo".
+      periodoAnalise: computePeriodoAnalise(group.rows.map((row) => row.dataDeBaixaDoTitulo))
     },
-    company: toPdfCompanyInfo(company),
+    company: toPdfCompanyInfo(company, lookupCompanyGroup(company.groupKey)),
     rows: group.rows.map(toRelacaoPdfRow),
     rowCount: group.rows.length,
     total: formatCurrencyBRL(group.total)

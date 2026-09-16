@@ -26,6 +26,27 @@ export function formatPercent(value: Decimal | null): string {
   return `${value.toFixed(2).replace('.', ',')}%`;
 }
 
+/**
+ * "Período de análise" - the smallest and largest VALID date among the given
+ * values, purely a display label. Never filters or excludes any row: every
+ * row that was included in the document stays included regardless of its
+ * date, this only summarizes the range those (already-included) dates span.
+ * `null`/invalid entries are ignored when picking the range; if none are
+ * valid, the period is "Não informado" rather than inventing a placeholder.
+ */
+export function computePeriodoAnalise(dates: readonly (Date | null)[]): string {
+  const valid = dates.filter((date): date is Date => date !== null && !Number.isNaN(date.getTime()));
+  if (valid.length === 0) return 'Não informado';
+
+  let min = valid[0];
+  let max = valid[0];
+  for (const date of valid) {
+    if (date < min) min = date;
+    if (date > max) max = date;
+  }
+  return `${formatDateBR(min)} a ${formatDateBR(max)}`;
+}
+
 export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

@@ -4,12 +4,15 @@ import { buildPerforatedMetalMotif } from './perforatedMetal';
 import type { ConsolidatedPdfIdentity, PdfCompanyInfo, PdfDocumentIdentity } from '../types';
 
 /**
- * Brand letterhead (logo + brand/legal identity) plus a decorative industrial
- * motif. Deliberately does NOT repeat the specific branch/seller identity -
- * that lives exactly once, in `buildDocumentMetaHtml` below - and does NOT
- * show a generation timestamp here either, for the same reason (single
- * source of truth, per branch instruction: an information appears once, in
- * the right place).
+ * Institutional letterhead (logo + corporate identity) plus a decorative
+ * industrial motif. Shows, in order, exactly the fields required for every
+ * document (separado, or one per branch inside a consolidado): grupo/
+ * organização, razão social da matriz, endereço da matriz, filial, CNPJ da
+ * filial, marca/logo - each line omitted (never invented) when its
+ * underlying data is absent. Falls back to the branch's own identity alone
+ * when it belongs to no known corporate group. Deliberately does NOT repeat
+ * the specific seller identity or a generation timestamp - those live
+ * exactly once, in `buildDocumentMetaHtml`/`buildConsolidatedMetaHtml`.
  */
 export function buildDocumentHeaderHtml(company: PdfCompanyInfo): string {
   const logoDataUri = company.logoPath ? embedImageAsDataUri(company.logoPath) : null;
@@ -17,18 +20,33 @@ export function buildDocumentHeaderHtml(company: PdfCompanyInfo): string {
     ? `<img class="doc-header__logo" src="${logoDataUri}" alt="${escapeHtml(company.displayName)}" />`
     : '';
 
-  const brandName = company.legalName ?? company.brandLabel ?? company.displayName;
   const companyLines: string[] = [];
-  if (company.cnpj) companyLines.push(`CNPJ: ${escapeHtml(company.cnpj)}`);
-  const addressLine = formatAddressLine(company);
-  if (addressLine) companyLines.push(escapeHtml(addressLine));
+  let headlineName: string;
+
+  if (company.group) {
+    headlineName = company.group.displayName;
+    if (company.group.legalName && company.group.legalName !== company.group.displayName) {
+      companyLines.push(escapeHtml(company.group.legalName));
+    }
+    const matrizAddressLine = formatAddressLine(company.group.headquartersAddress);
+    if (matrizAddressLine) companyLines.push(`Matriz: ${escapeHtml(matrizAddressLine)}`);
+    companyLines.push(`Filial: ${escapeHtml(company.displayName)}`);
+    if (company.cnpj) companyLines.push(`CNPJ: ${escapeHtml(company.cnpj)}`);
+  } else {
+    // No known corporate group for this branch - falls back to its own identity alone,
+    // exactly as before the group concept existed (never invents a group that isn't there).
+    headlineName = company.legalName ?? company.brandLabel ?? company.displayName;
+    if (company.cnpj) companyLines.push(`CNPJ: ${escapeHtml(company.cnpj)}`);
+    const addressLine = formatAddressLine(company.address);
+    if (addressLine) companyLines.push(escapeHtml(addressLine));
+  }
 
   return `
     <header class="doc-header">
       <div class="doc-header__brand">
         ${logoHtml}
         <div class="doc-header__company">
-          <strong>${escapeHtml(brandName)}</strong>
+          <strong>${escapeHtml(headlineName)}</strong>
           ${companyLines.map((line) => `<span>${line}</span>`).join('')}
         </div>
       </div>
@@ -37,8 +55,7 @@ export function buildDocumentHeaderHtml(company: PdfCompanyInfo): string {
   `;
 }
 
-function formatAddressLine(company: PdfCompanyInfo): string | null {
-  const address = company.address;
+function formatAddressLine(address: { endereco?: string; cidade?: string; uf?: string } | null): string | null {
   if (!address) return null;
   const parts = [address.endereco, [address.cidade, address.uf].filter(Boolean).join('/')].filter(
     (part) => part && part.trim() !== ''
@@ -56,13 +73,21 @@ export function buildTitleHtml(title: string, subtitle: string): string {
 }
 
 /**
- * The single authoritative place where this document's seller, branch and
- * generation date appear - vendor and branch identity are never repeated
+ * The single authoritative place where this document's seller, branch,
+ * moeda, período de análise and generation date appear - never repeated
  * anywhere else in the body (the letterhead above shows the issuing
- * company/brand, not the branch; the running page header/footer show only
- * short codes for page-tracking, never the full names again).
+ * company/brand, not the seller/branch; the running page header/footer show
+ * only short codes for page-tracking, never the full names again).
  */
-export function buildDocumentMetaHtml(identity: PdfDocumentIdentity, generatedAtLabel: string): string {
+export function buildDocumentMetaHtml(
+  identity: PdfDocumentIdentity,
+  company: PdfCompanyInfo,
+  generatedAtLabel: string
+): string {
+  const empresaFilial = company.brandLabel
+    ? `${company.brandLabel} / ${identity.branchName || '-'}`
+    : identity.branchName || '-';
+
   return `
     <section class="doc-meta">
       <div class="doc-meta__item">
@@ -71,9 +96,20 @@ export function buildDocumentMetaHtml(identity: PdfDocumentIdentity, generatedAt
         <p class="doc-meta__sub">Código ${escapeHtml(identity.sellerCode)}</p>
       </div>
       <div class="doc-meta__item">
-        <p class="doc-meta__label">Filial</p>
-        <p class="doc-meta__value">${escapeHtml(identity.branchName || '-')}</p>
-        <p class="doc-meta__sub">Código ${escapeHtml(identity.branchCode)}</p>
+        <p class="doc-meta__label">Empresa/Filial</p>
+        <p class="doc-meta__value">${escapeHtml(empresaFilial)}</p>
+      </div>
+      <div class="doc-meta__item">
+        <p class="doc-meta__label">Código da Filial</p>
+        <p class="doc-meta__value">${escapeHtml(identity.branchCode)}</p>
+      </div>
+      <div class="doc-meta__item">
+        <p class="doc-meta__label">Moeda</p>
+        <p class="doc-meta__value">REAL</p>
+      </div>
+      <div class="doc-meta__item">
+        <p class="doc-meta__label">Período de Análise</p>
+        <p class="doc-meta__value">${escapeHtml(identity.periodoAnalise)}</p>
       </div>
       <div class="doc-meta__item">
         <p class="doc-meta__label">Data de Geração</p>
@@ -95,22 +131,27 @@ export function buildTotalBlockHtml(label: string, value: string): string {
 }
 
 /**
- * The consolidated equivalent of `buildDocumentMetaHtml` - one seller, no
- * single branch (`branchCodes` lists every branch included). Not polished
- * (visual finishing is a later phase); this is the minimal correct
- * identity block for a multi-branch document.
+ * The top-of-document block for a consolidado PDF - deliberately carries NO
+ * company/branch identity (no specific filial is used as the document's
+ * global identity): only the seller, moeda, período geral and data de
+ * geração. Each branch's own institutional identity is shown separately,
+ * once per branch, via `buildDocumentHeaderHtml` inside its own section.
  */
 export function buildConsolidatedMetaHtml(identity: ConsolidatedPdfIdentity, generatedAtLabel: string): string {
   return `
-    <section class="doc-meta">
+    <section class="doc-meta doc-meta--consolidated-top">
       <div class="doc-meta__item">
         <p class="doc-meta__label">Vendedor</p>
         <p class="doc-meta__value">${escapeHtml(identity.sellerName || '-')}</p>
         <p class="doc-meta__sub">Código ${escapeHtml(identity.sellerCode)}</p>
       </div>
       <div class="doc-meta__item">
-        <p class="doc-meta__label">Filiais incluídas</p>
-        <p class="consolidated-branches-list">${escapeHtml(identity.branchCodes.join(', '))}</p>
+        <p class="doc-meta__label">Moeda</p>
+        <p class="doc-meta__value">REAL</p>
+      </div>
+      <div class="doc-meta__item">
+        <p class="doc-meta__label">Período de Análise</p>
+        <p class="doc-meta__value">${escapeHtml(identity.periodoAnalise)}</p>
       </div>
       <div class="doc-meta__item">
         <p class="doc-meta__label">Data de Geração</p>
@@ -120,9 +161,15 @@ export function buildConsolidatedMetaHtml(identity: ConsolidatedPdfIdentity, gen
   `;
 }
 
-/** Heading that separates each branch's own section inside a consolidated document. */
-export function buildBranchSectionHeadingHtml(branchCode: string, branchName: string): string {
-  return `<p class="branch-section__heading">Filial ${escapeHtml(branchCode)} - ${escapeHtml(branchName)}</p>`;
+/**
+ * Repeats at the top of every table inside a `<thead>` (so it survives page
+ * breaks automatically, same mechanism as the column-header row) - the only
+ * reliable way to identify which filial a consolidado table's continuation
+ * pages belong to, since Chromium's print header/footer templates are
+ * static and cannot know which DOM section is showing on a given page.
+ */
+export function buildBranchTableContextRowHtml(branchCode: string, branchName: string, columnCount: number): string {
+  return `<tr class="branch-context-row"><td colspan="${columnCount}">Filial ${escapeHtml(branchCode)} - ${escapeHtml(branchName)}</td></tr>`;
 }
 
 export function buildSubtotalBlockHtml(label: string, value: string): string {
@@ -136,18 +183,19 @@ export function buildSubtotalBlockHtml(label: string, value: string): string {
   `;
 }
 
-/** Running header for a consolidated document - shows the seller and "Consolidado", never a single branch code. */
-export function buildConsolidatedPrintHeaderTemplate(
-  company: PdfCompanyInfo,
-  modeTitle: string,
-  identity: ConsolidatedPdfIdentity
-): string {
-  const brandName = company.legalName ?? company.brandLabel ?? company.displayName;
+/**
+ * Running header for a consolidado document - deliberately never names a
+ * single branch/company as the document's identity (per-page it only shows
+ * the mode and the seller, matching the "no specific filial as global
+ * identity" rule); which filial a given page's table belongs to is instead
+ * identified via `buildBranchTableContextRowHtml`, repeated in-table.
+ */
+export function buildConsolidatedPrintHeaderTemplate(modeTitle: string, identity: ConsolidatedPdfIdentity): string {
   return `
     <div style="font-size:7px; width:100%; padding:0 24px 3px; display:flex; justify-content:space-between;
                 color:#9a9a9a; font-family:Arial,sans-serif; border-bottom:0.5px solid #d8d8d8;">
-      <span>${escapeHtml(brandName)} - ${escapeHtml(modeTitle)}</span>
-      <span>Vend. ${escapeHtml(identity.sellerCode)} - Consolidado (${identity.branchCodes.length} filiais)</span>
+      <span>${escapeHtml(modeTitle)} - Consolidado por Vendedor</span>
+      <span>Vend. ${escapeHtml(identity.sellerName)} (${escapeHtml(identity.sellerCode)}) - ${identity.branchCodes.length} filiais</span>
     </div>
   `;
 }

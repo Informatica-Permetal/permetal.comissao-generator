@@ -16,6 +16,9 @@ export const BASE_CSS = `
     padding-bottom: 14px;
     margin-bottom: 4px;
     border-bottom: 2px solid #1a1a1a;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    break-after: avoid-page;
   }
   .doc-header__brand {
     display: flex;
@@ -80,6 +83,8 @@ export const BASE_CSS = `
     border: 1px solid #e5e7e9;
     border-radius: 6px;
     overflow: hidden;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .doc-meta__item {
     padding: 9px 14px;
@@ -106,6 +111,8 @@ export const BASE_CSS = `
     color: #666;
     margin: 1px 0 0;
   }
+  /* Top-of-consolidado block: no branch/company identity, just 4 document-level facts. */
+  .doc-meta--consolidated-top { grid-template-columns: repeat(4, 1fr); }
 
   /* ---------- Table ---------- */
   table {
@@ -146,6 +153,17 @@ export const BASE_CSS = `
     border-top: 2px solid #1a1a1a;
     border-bottom: 1px solid #ccc;
   }
+  /* Repeats inside <thead> on every page a consolidado branch's table spans, so a
+     continuation page never leaves the reader unsure which filial it belongs to. */
+  tr.branch-context-row td {
+    background: #1a1a1a;
+    color: #fff;
+    font-weight: 700;
+    font-size: 8.3px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 5px 7px;
+  }
 
   /* ---------- Total ---------- */
   .total-block {
@@ -185,18 +203,12 @@ export const BASE_CSS = `
     border-top: 2px dashed #ccc;
     padding-top: 18px;
   }
-  .branch-section__heading {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    color: #555;
-    margin: 0 0 8px;
-  }
   .subtotal-block {
     display: flex;
     justify-content: flex-end;
     margin: 8px 0 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
   .subtotal-block__inner {
     text-align: right;
@@ -216,10 +228,6 @@ export const BASE_CSS = `
     font-size: 13px;
     font-weight: 700;
     margin-top: 1px;
-  }
-  .consolidated-branches-list {
-    font-size: 8.5px;
-    color: #666;
   }
 
   /* ---------- Signature ---------- */

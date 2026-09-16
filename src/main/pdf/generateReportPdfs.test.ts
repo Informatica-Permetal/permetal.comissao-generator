@@ -376,7 +376,7 @@ describe('generateRelacaoPdfs', () => {
     expect(generated.total).toBe('R$ 30,00');
 
     const html = renderPdf.mock.calls[0][0] as string;
-    expect(html).toContain('Total Consolidado da Comissão');
+    expect(html).toContain('Total da Comissão');
     expect(html).toContain('R$ 30,00');
   });
 });

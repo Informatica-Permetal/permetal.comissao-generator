@@ -1,5 +1,12 @@
 import type { CompanyAddress } from '@shared/types/companyProfile';
 
+/** The branch's corporate group/organization - "grupo/organização" and "razão social/endereço da matriz" in the PDF header. Never conflated with the branch's own identity or its brand/logo. */
+export interface PdfGroupInfo {
+  displayName: string;
+  legalName: string | null;
+  headquartersAddress: CompanyAddress | null;
+}
+
 export interface PdfCompanyInfo {
   logoPath: string | null;
   displayName: string;
@@ -8,6 +15,8 @@ export interface PdfCompanyInfo {
   legalName: string | null;
   cnpj: string | null;
   address: CompanyAddress | null;
+  /** Null when this branch has no known corporate group - the header then falls back to the branch's own identity alone. */
+  group: PdfGroupInfo | null;
 }
 
 export interface PdfDocumentIdentity {
@@ -17,6 +26,8 @@ export interface PdfDocumentIdentity {
   branchCode: string;
   branchName: string;
   generatedAt: Date;
+  /** "Não informado" when no row has a valid date for the mode's authoritative date field - never used to filter rows, purely a display summary. */
+  periodoAnalise: string;
 }
 
 export interface PrevisaoPdfRow {
@@ -72,6 +83,8 @@ export interface ConsolidatedPdfIdentity {
   sellerName: string;
   branchCodes: string[];
   generatedAt: Date;
+  /** Computed across every row of every included branch - "Não informado" when none has a valid date. Never used to filter rows. */
+  periodoAnalise: string;
 }
 
 export interface PrevisaoConsolidatedBranchSection {

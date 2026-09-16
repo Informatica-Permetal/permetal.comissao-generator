@@ -4,6 +4,7 @@ import { IPC_CHANNELS } from '@shared/contracts/ipc';
 import type { GenerateReportResult, PrintPdfResult } from '@shared/types/pdf';
 import type { BatchPreview, GroupingChoices } from '@shared/types/import';
 import { getCompanyProfile } from '../companies/companyProfileRepository';
+import { getCompanyGroup } from '../companies/companyGroupRepository';
 import { getReportRoot } from '../storage/settingsRepository';
 import { renderHtmlToPdf } from '../pdf/renderPdf';
 import { openContainingFolder, openPdf, printPdf } from '../pdf/pdfActions';
@@ -39,6 +40,7 @@ export function registerPdfHandlers(deps: PdfHandlerDeps): void {
       }
 
       const lookupCompanyProfile = (branchCode: string) => getCompanyProfile(db, branchCode);
+      const lookupCompanyGroup = (groupKey: string | null) => (groupKey ? getCompanyGroup(db, groupKey) : null);
 
       const result = await runBatchGeneration(
         {
@@ -53,6 +55,7 @@ export function registerPdfHandlers(deps: PdfHandlerDeps): void {
           db,
           reportRoot,
           lookupCompanyProfile,
+          lookupCompanyGroup,
           appVersion: app.getVersion(),
           renderPdf: renderHtmlToPdf
         }

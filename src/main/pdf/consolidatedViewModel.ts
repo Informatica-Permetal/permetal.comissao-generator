@@ -1,9 +1,9 @@
-import type { CompanyProfile } from '@shared/types/companyProfile';
+import type { CompanyGroup, CompanyProfile } from '@shared/types/companyProfile';
 import type { ConsolidatedSellerGroup } from '../reports/common/grouping';
 import type { PrevisaoParsedRow } from '../reports/previsao/parser';
 import type { RelacaoParsedRow } from '../reports/relacao/parser';
 import { toPdfCompanyInfo } from './companyInfo';
-import { formatCurrencyBRL, formatDateBR, formatPercent } from './format';
+import { computePeriodoAnalise, formatCurrencyBRL, formatDateBR, formatPercent } from './format';
 import type {
   PrevisaoConsolidatedBranchSection,
   PrevisaoConsolidatedPdfViewModel,
@@ -19,6 +19,7 @@ const UNCLASSIFIED_LABEL = '(sem classificação)';
 export function buildPrevisaoConsolidatedViewModel(
   consolidated: ConsolidatedSellerGroup<PrevisaoParsedRow>,
   lookupCompanyProfile: (branchCode: string) => CompanyProfile | null,
+  lookupCompanyGroup: (groupKey: string | null) => CompanyGroup | null,
   generatedAt: Date
 ): PrevisaoConsolidatedPdfViewModel {
   const branches: PrevisaoConsolidatedBranchSection[] = consolidated.branches.map((branch) => {
@@ -26,12 +27,15 @@ export function buildPrevisaoConsolidatedViewModel(
     return {
       branchCode: branch.branchCode,
       branchName: branch.branchName || company.displayName,
-      company: toPdfCompanyInfo(company),
+      company: toPdfCompanyInfo(company, lookupCompanyGroup(company.groupKey)),
       sections: groupByClassification(branch.rows),
       rowCount: branch.rows.length,
       subtotal: formatCurrencyBRL(branch.total)
     };
   });
+
+  // Periodo geral: considera as datas de TODAS as filiais do vendedor, nunca so a primeira.
+  const allDates = consolidated.branches.flatMap((branch) => branch.rows.map((row) => row.vencimento));
 
   return {
     identity: {
@@ -39,7 +43,8 @@ export function buildPrevisaoConsolidatedViewModel(
       sellerCode: consolidated.sellerCode,
       sellerName: consolidated.sellerName,
       branchCodes: consolidated.branches.map((branch) => branch.branchCode),
-      generatedAt
+      generatedAt,
+      periodoAnalise: computePeriodoAnalise(allDates)
     },
     branches,
     rowCount: consolidated.rowCount,
@@ -50,6 +55,7 @@ export function buildPrevisaoConsolidatedViewModel(
 export function buildRelacaoConsolidatedViewModel(
   consolidated: ConsolidatedSellerGroup<RelacaoParsedRow>,
   lookupCompanyProfile: (branchCode: string) => CompanyProfile | null,
+  lookupCompanyGroup: (groupKey: string | null) => CompanyGroup | null,
   generatedAt: Date
 ): RelacaoConsolidatedPdfViewModel {
   const branches: RelacaoConsolidatedBranchSection[] = consolidated.branches.map((branch) => {
@@ -57,12 +63,14 @@ export function buildRelacaoConsolidatedViewModel(
     return {
       branchCode: branch.branchCode,
       branchName: branch.branchName || company.displayName,
-      company: toPdfCompanyInfo(company),
+      company: toPdfCompanyInfo(company, lookupCompanyGroup(company.groupKey)),
       rows: branch.rows.map(toRelacaoPdfRow),
       rowCount: branch.rows.length,
       subtotal: formatCurrencyBRL(branch.total)
     };
   });
+
+  const allDates = consolidated.branches.flatMap((branch) => branch.rows.map((row) => row.dataDeBaixaDoTitulo));
 
   return {
     identity: {
@@ -70,7 +78,8 @@ export function buildRelacaoConsolidatedViewModel(
       sellerCode: consolidated.sellerCode,
       sellerName: consolidated.sellerName,
       branchCodes: consolidated.branches.map((branch) => branch.branchCode),
-      generatedAt
+      generatedAt,
+      periodoAnalise: computePeriodoAnalise(allDates)
     },
     branches,
     rowCount: consolidated.rowCount,

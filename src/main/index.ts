@@ -1,8 +1,11 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { join } from 'node:path';
-import { APP_NAME } from '@shared/constants/app';
+import { APP_ID, APP_NAME } from '@shared/constants/app';
 import { resolveAppDataPaths } from './app/paths';
 import { resolveAppIconPath, resolveBrandLogosDir } from './app/assets';
+import { writeReportRootManifestIfMissing } from './app/dataOwnership';
+import { MODE_FOLDER_NAME } from './app/folderNames';
+import { findHardBlockReason, resolveCanonicalIfExists, type SpecialFolders } from './app/uninstallPlan';
 import { initLogger, log } from './app/logger';
 import { openDatabase } from './storage/database';
 import { registerSettingsHandlers } from './ipc/settingsHandlers';
@@ -12,6 +15,7 @@ import { registerHistoryHandlers } from './ipc/historyHandlers';
 import { registerImportHandlers, startImportWatchers, stopImportWatchers } from './ipc/importHandlers';
 import { seedDefaultCompanyProfiles } from './companies/seedCompanyProfiles';
 import { getReportRoot } from './storage/settingsRepository';
+import { parseUninstallCliArgs, runUninstallCli } from './uninstallCli';
 import {
   migrateLegacyAppData,
   migrateLegacyReportRootAndPaths,
@@ -23,6 +27,18 @@ const paths = resolveAppDataPaths();
 app.setPath('userData', paths.userDataPath);
 app.setPath('logs', paths.logDir);
 app.setName(APP_NAME);
+
+/** `null` on every normal launch - only set when the uninstaller invokes this same executable in its headless data-cleanup mode (see `uninstallCli.ts`). */
+const uninstallCliArgs = parseUninstallCliArgs(process.argv);
+
+function resolveSpecialFolders(): SpecialFolders {
+  return {
+    home: app.getPath('home'),
+    documents: app.getPath('documents'),
+    desktop: app.getPath('desktop'),
+    downloads: app.getPath('downloads')
+  };
+}
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -63,6 +79,15 @@ function createMainWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  if (uninstallCliArgs) {
+    // Headless: no window, no IPC, no watchers - resolve and (if requested) delete app-managed
+    // data, write the result file the uninstaller reads, then exit immediately.
+    const db = openDatabase(paths.databasePath);
+    runUninstallCli(uninstallCliArgs, { db, paths, special: resolveSpecialFolders() });
+    app.exit(0);
+    return;
+  }
+
   migrateLegacyAppData(paths, (message, meta) => console.warn(message, meta));
 
   initLogger(paths.logDir);
@@ -98,6 +123,12 @@ void app.whenReady().then(() => {
 
   const existingReportRoot = getReportRoot(db);
   if (existingReportRoot) {
+    // Self-healing backfill for installs from before the report-root manifest existed - never
+    // written for a hard-blocked broad location, even one a much older version let through.
+    const canonicalRoot = resolveCanonicalIfExists(existingReportRoot);
+    if (canonicalRoot && !findHardBlockReason(canonicalRoot, resolveSpecialFolders())) {
+      writeReportRootManifestIfMissing(canonicalRoot, APP_ID, Object.values(MODE_FOLDER_NAME));
+    }
     startImportWatchers(existingReportRoot, () => mainWindow);
   }
 

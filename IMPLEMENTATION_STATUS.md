@@ -1362,3 +1362,65 @@ Novos: `src/main/pdf/htmlTemplate/layout.test.ts` ganhou testes para `buildDocum
 - Nenhuma nova ação de UI foi adicionada; o pipeline de escolha separado/consolidado (FASE 5) e o conteúdo/campos exigidos (FASE 6) permanecem inalterados - esta fase é puramente de acabamento visual.
 
 **PARADO conforme instruído.**
+
+## FASE 8 - Desinstalador seguro: preservar dados por padrão, excluir somente com confirmação explícita (CONCLUÍDA)
+
+Atualiza o desinstalador NSIS para oferecer, como opção **desmarcada por padrão**, excluir também os dados e documentos do Formatador Comissão. Nenhuma lógica de negócio/relatório foi tocada - esta fase é inteiramente sobre o instalador/desinstalador e uma nova camada de segurança para exclusão de dados.
+
+### Arquitetura: segurança em TypeScript testável, NSIS só cuida da UI
+
+Em vez de reimplementar a lógica de segurança em NSIS (frágil, difícil de revisar, impossível de testar unitariamente), a decisão do que é seguro excluir vive inteiramente no código já testado do app; o script NSIS só exibe a página/checkbox e invoca o próprio executável do app num modo CLI oculto, **antes** dos arquivos do programa serem removidos:
+
+- `src/main/app/dataOwnership.ts` (novo) - marcador/manifesto `.formador-comissao-report-root.json`, escrito **uma única vez** dentro do report root no momento em que a árvore de pastas é criada (`writeReportRootManifestIfMissing`, chamado de `settingsHandlers.ts` logo após `createFolderTree`). Contém `schemaVersion`, `appId`, `createdAt` e a lista exata de nomes de pasta de topo que o app gerencia (`Previsão`, `Relação`). Nunca sobrescrito depois de criado. `readReportRootManifest` rejeita qualquer arquivo ausente, corrompido ou fora do schema esperado - a ausência de manifesto válido nunca é tratada como prova de propriedade.
+- `src/main/app/uninstallPlan.ts` (novo) - toda a decisão de segurança, em duas fases deliberadamente separadas:
+  - `buildUninstallPlan` decide **o quê** pode ser excluído. Bloqueio absoluto (nunca exclui, mesmo que um manifesto exista lá "adversarialmente") quando o caminho resolvido (`fs.realpathSync.native`, nunca o caminho cru) é exatamente a raiz de uma unidade de disco, a pasta de perfil do usuário, Documentos, Área de Trabalho ou Downloads - comparação sempre entre dois caminhos já canonicalizados (Windows pode expor a mesma pasta por um alias de nome curto 8.3 como `INFORM~1` vs o nome longo; comparar um canonical contra um não-canonical bate errado - bug real encontrado e corrigido pelos próprios testes desta fase). Fora do bloqueio absoluto, exige um manifesto válido com o `appId` correto antes de considerar qualquer coisa dentro do report root. Mesmo assim, a exclusão nunca é da pasta raiz inteira - somente os nomes de pasta exatos listados no manifesto (interseccionados com o conjunto atual conhecido pelo código, nunca confiando ciegamente num manifesto antigo/adulterado), e só se o caminho real de cada uma ainda resolver **dentro** do root canonical (protege contra uma pasta gerenciada trocada por uma junction/symlink apontando para fora - testado de verdade criando uma junction real neste Windows, sem privilégio de admin).
+  - `executeUninstallPlan` apenas apaga, sem validação própria, exatamente a lista de itens que o plano já validou - nenhuma decisão de segurança acontece nesta função.
+- `src/main/uninstallCli.ts` (novo) - hook headless: `--uninstall-check-paths --uninstall-out=<arquivo>` escreve a lista de caminhos que seriam excluídos (nunca exclui nada); `--uninstall-delete-data --uninstall-out=<arquivo>` reconstrói o plano do zero (nunca confia num "check" anterior) e executa a exclusão de verdade. Fecha a conexão SQLite **antes** de excluir a pasta AppData (ela contém o próprio arquivo `.db` aberto - excluir a pasta com o arquivo ainda aberto falha no Windows; bug real encontrado e corrigido pelos testes desta fase). Escreve o resultado como texto UTF-16LE simples (nunca JSON) - o único consumidor é o script NSIS, que lê texto Unicode linha a linha via `FileReadUTF16LE` e não tem parser de JSON.
+- `src/main/index.ts` - no topo, `parseUninstallCliArgs(process.argv)` detecta os dois modos; quando presentes, o app abre o banco, roda `runUninstallCli` e sai imediatamente (`app.exit(0)`) - nunca cria janela, nunca registra IPC, nunca inicia watchers. Também adiciona um backfill automático e autocurativo: toda vez que o app inicia normalmente e encontra um report root já configurado sem manifesto (instalações de antes desta fase), escreve o manifesto agora - mas só se o caminho não estiver na lista de bloqueio absoluto, nunca criando um manifesto dentro de uma pasta ampla.
+
+### NSIS: página customizada, checkbox desmarcado por padrão
+
+- `resources/installer.nsh` (novo, referenciado via `nsis.include` no `package.json`) - usa o hook `customUnWelcomePage` do template do electron-builder para substituir a página de bem-vindo do desinstalador por uma página nsDialogs própria, exibida **antes** de qualquer arquivo do programa ser removido (para que o executável do app ainda exista quando o script precisa invocá-lo):
+  - Um checkbox **desmarcado por padrão**: "Também excluir dados e documentos do Formatador Comissão".
+  - Ao marcar, um campo de texto multilinha somente leitura é populado chamando `"$INSTDIR\Formatador Comissão.exe" --uninstall-check-paths` e lendo o resultado - mostra os caminhos exatos, nunca inventados pelo script NSIS.
+  - Ao avançar com o checkbox marcado, uma segunda confirmação nativa (`MessageBox MB_YESNO`, botão padrão em "Não") com texto de risco explícito; respondendo "Não" mantém o usuário na página (não avança, não exclui nada). Respondendo "Sim" invoca `--uninstall-delete-data` e só então segue para a remoção normal dos arquivos do programa.
+  - Se o checkbox nunca foi marcado, a função de saída da página não faz nada extra - o fluxo padrão (preservar) é literalmente o caminho de menor código, não uma exceção.
+  - Um desinstalador silencioso (`/S`) nunca exibe páginas customizadas (comportamento padrão do NSIS) - **um desinstalador silencioso/roteirizado sempre preserva os dados**, sem nenhum código extra necessário para garantir isso.
+- Dois bugs reais de nível de compilador encontrados e corrigidos só ao compilar de verdade (não detectáveis por inspeção): `${APP_EXECUTABLE_FILENAME}` ainda não está definido no momento em que este arquivo é processado (raiz reconstruída localmente a partir de `${PRODUCT_FILENAME}`, que chega pela linha de comando do `makensis` e por isso já está disponível desde o início); e funções/variáveis prefixadas `un.` são coletadas pelo NSIS para o binário do desinstalador mesmo durante a passada de compilação do **instalador**, disparando o erro "Uninstaller script code found but WriteUninstaller never used" - corrigido envolvendo todo o conteúdo da página num `!ifdef BUILD_UNINSTALLER ... !endif`.
+
+### Testes automatizados
+
+Novos: `src/main/app/dataOwnership.test.ts`, `src/main/app/uninstallPlan.test.ts` (bloqueio de pasta ampla mesmo com manifesto adversarial presente, preserva arquivo/pasta estranha não gerenciada, nunca exclui sem manifesto válido, protege contra escape por junction real - não simulada), `src/main/uninstallCli.test.ts` (integração completa: check nunca apaga, delete realmente apaga e fecha o banco antes).
+
+### Testes reais do instalador/desinstalador (não apenas testes automatizados)
+
+Conforme instruído, a conclusão não se apoiou só em testes automatizados. Foi gerado um instalador real (`npm run dist`) e testado de ponta a ponta, sempre com `LOCALAPPDATA` redirecionado para uma sandbox isolada (nunca tocando dados reais deste computador) e o diretório de instalação sob controle via `/D=`:
+
+1. **Instalação silenciosa real** (`Setup.exe /S /D=<sandbox>`) - concluída sem nenhum prompt do UAC (a chave de registro ficou em `HKCU`, nunca `HKLM` - confirmado via `reg query`), sem exigir admin, exatamente como esperado de `perMachine:false`/`allowElevation:false`.
+2. **Desinstalação silenciosa real preservando dados** - confirmado que o programa foi removido (`Formatador Comissão.exe` não existe mais) enquanto o banco de dados, o relatório real gerado e o manifesto sobreviveram intactos, e a chave de registro foi removida.
+3. **Reinstalação real** - reinstalado no mesmo local; o app reconhece corretamente o mesmo report root e os mesmos 4 itens geridos (AppData + Previsão + Relação + manifesto), confirmando que histórico/documentos realmente sobrevivem a um ciclo desinstalar-preservando/reinstalar.
+4. **`--uninstall-check-paths` e `--uninstall-delete-data` reais**, executados diretamente contra o `.exe` empacotado (não mockado): identificou e depois excluiu corretamente exatamente os itens esperados; um arquivo (`nao-gerenciado.txt`) e uma pasta (`Pasta Pessoal Do Usuario`) colocados deliberadamente dentro do mesmo report root sobreviveram intactos à exclusão real.
+5. **Teste adversarial com o caminho real** - o `reportRoot` das configurações foi apontado para a pasta **Documentos real deste próprio computador** (`C:\Users\INFORMATICA2\Documents`, resolvida via `app.getPath('documents')`, não simulada) e tanto `--uninstall-check-paths` quanto `--uninstall-delete-data` reais foram executados contra ela: o bloqueio disparou corretamente (0 itens elegíveis ali), e a contagem de itens dentro da pasta Documentos real ficou **idêntica antes e depois** (20 itens) - prova concreta, não teórica, de que a proteção contra pastas amplas funciona no binário real.
+6. Root customizado (nome/local arbitrário, não o sugerido) testado e funcionando durante os passos acima.
+
+### Limitação de teste declarada
+
+Este ambiente de execução de comandos não tem acesso a uma sessão de desktop interativa para processos gráficos - confirmado tentando abrir até o Bloco de Notas (`notepad.exe`), que também encerra sem mostrar janela. Isso significa que a página customizada do desinstalador (o checkbox, a leitura dos caminhos, os dois diálogos de confirmação) foi validada por compilação real bem-sucedida e por revisão cuidadosa da lógica nsDialogs, mas **não pôde ser clicada/vista de verdade** nesta sessão. Toda a lógica que essa página invoca (checagem de caminhos, bloqueio de pastas amplas, exclusão real, preservação de conteúdo estranho) foi validada de ponta a ponta contra o executável real, como descrito acima - o que resta não testado interativamente é estritamente a renderização visual da página em si. Recomenda-se que o usuário faça um clique-through manual do desinstalador (`release\Formatador Comissão-Setup-1.1.0.exe`) antes de distribuir amplamente, para confirmar visualmente o checkbox e os dois diálogos.
+
+### Testes técnicos
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK |
+| `npm run lint` | OK - 0 erros, 2 avisos pré-existentes inalterados |
+| `npm run test` | OK - **318/318** testes (27 novos) |
+| `npm run build` | OK |
+| `npm run dist` (empacotamento NSIS real) | OK - instalador e desinstalador compilados e assinados sem erros |
+
+### Pendências / observações
+
+- Clique-through manual do desinstalador ainda recomendado pelo motivo descrito acima (limitação de ambiente, não de implementação).
+- Uma pasta de teste vazia (`uninstall-test-sandbox\Program`) ficou temporariamente presa por um lock transiente do Windows numa pasta de scratch da sessão (fora do projeto) e não pôde ser removida nas últimas tentativas - não afeta o projeto nem dados reais do usuário; deve se resolver por conta própria (lock transiente, não um processo preso) ou pode ser removida manualmente mais tarde.
+- Nenhuma UI nova foi adicionada dentro do próprio app (nenhuma tela de "excluir meus dados" a partir de Configurações) - o pedido foi especificamente sobre o desinstalador, não uma ação dentro do app em uso normal.
+
+**PARADO conforme instruído.**

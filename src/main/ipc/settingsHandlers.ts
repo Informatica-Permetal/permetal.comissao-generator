@@ -1,9 +1,12 @@
 import { app, dialog, ipcMain, type BrowserWindow } from 'electron';
 import type { DatabaseSync } from 'node:sqlite';
 import { IPC_CHANNELS } from '@shared/contracts/ipc';
+import { APP_ID } from '@shared/constants/app';
 import type { AppState, CompleteFirstRunResult, FolderPermissionResult } from '@shared/types/settings';
 import { resolveSuggestedReportRoot, type AppDataPaths } from '../app/paths';
 import { createFolderTree, testFolderPermissions } from '../app/reportRoot';
+import { writeReportRootManifestIfMissing } from '../app/dataOwnership';
+import { MODE_FOLDER_NAME } from '../app/folderNames';
 import { log } from '../app/logger';
 import { getReportRoot, isFirstRunComplete, persistFirstRunCompletion } from '../storage/settingsRepository';
 
@@ -55,6 +58,7 @@ export function registerSettingsHandlers(deps: SettingsHandlerDeps): void {
       }
       try {
         createFolderTree(reportRoot);
+        writeReportRootManifestIfMissing(reportRoot, APP_ID, Object.values(MODE_FOLDER_NAME));
         persistFirstRunCompletion(db, reportRoot);
         log('info', 'first run completed', { reportRoot });
         onFirstRunCompleted?.(reportRoot);

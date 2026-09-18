@@ -96,6 +96,7 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Formatador Comissão",
       "deleteAppDataOnUninstall": false,
+      "include": "resources/installer.nsh",
       "artifactName": "${productName}-Setup-${version}.${ext}"
     }
   }

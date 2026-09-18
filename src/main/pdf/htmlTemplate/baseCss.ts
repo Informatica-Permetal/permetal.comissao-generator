@@ -249,32 +249,15 @@ export const BASE_CSS = `
      page even when the previous page still has plenty of room - wasting it for no benefit, since
      the "avoid" could never actually be honored for a section that large anyway. Found via a real
      230-row/3-filial sample, where filial 0103 alone left most of the cover page blank. */
-  /* Elegant, unambiguous break between filiais - a labeled rule with a small crop of the same
-     industrial motif, so a reader skimming a printed multi-filial document never mistakes a new
-     section for a continuation of the previous filial. Never rendered before the first section. */
+  /* Elegant, unambiguous break between filiais - one plain, continuous rule (never the industrial
+     motif, which appears exactly once, in the document's own global cover), so a reader skimming a
+     printed multi-filial document never mistakes a new section for a continuation of the previous
+     filial. Never rendered before the first section. */
   .branch-divider {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     margin: 30px 0 4px;
-    break-after: avoid-page;
-  }
-  .branch-divider::before,
-  .branch-divider::after {
-    content: '';
-    flex: 1 1 auto;
     height: 1px;
     background: #d5d8db;
-  }
-  .branch-divider__motif {
-    flex: none;
-    height: 22px;
-    width: auto;
-    max-width: 140px;
-    object-fit: cover;
-    object-position: right center;
-    border-radius: 3px;
-    opacity: 0.55;
+    break-after: avoid-page;
   }
   .subtotal-block {
     display: flex;
@@ -303,36 +286,11 @@ export const BASE_CSS = `
     margin-top: 1px;
   }
 
-  /* Discreet closing accent, once, immediately above the signature - never a repeated
-     per-page/per-filial element, just a quiet nod to the same industrial motif at the very end. */
-  .doc-footer-motif {
-    display: flex;
-    justify-content: flex-end;
-    margin: 26px 0 0;
-    break-inside: avoid;
-    page-break-inside: avoid;
-    break-after: avoid-page;
-  }
-  .doc-footer-motif__img {
-    height: 15px;
-    width: auto;
-    max-width: 100px;
-    object-fit: cover;
-    object-position: right center;
-    border-radius: 2px;
-    opacity: 0.4;
-  }
-
   /* ---------- Signature ---------- */
   .signature {
     margin-top: 34px;
     break-inside: avoid;
     page-break-inside: avoid;
-  }
-  /* When the discreet footer motif precedes it, it already carries the visual separation -
-     the signature's own top margin would otherwise stack on top of it and read as a gap. */
-  .doc-footer-motif + .signature {
-    margin-top: 10px;
   }
   .signature__declaration {
     font-size: 9px;

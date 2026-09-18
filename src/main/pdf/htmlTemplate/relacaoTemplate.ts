@@ -72,7 +72,7 @@ export function buildRelacaoHtmlDocument(
       </tbody>
     </table>
     ${buildTotalBlockHtml('Total da Comissão', vm.total)}
-    ${buildSignatureBlockHtml(motifDataUri)}
+    ${buildSignatureBlockHtml()}
   </body>
 </html>`;
 }

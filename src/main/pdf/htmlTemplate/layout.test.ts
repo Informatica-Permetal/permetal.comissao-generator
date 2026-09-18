@@ -210,31 +210,20 @@ describe('buildConsolidatedCoverHtml', () => {
 });
 
 describe('buildBranchDividerHtml - separador entre filiais', () => {
-  it('inclui a imagem do motivo quando fornecida', () => {
-    const html = buildBranchDividerHtml(FAKE_MOTIF_DATA_URI);
-    expect(html).toContain('branch-divider');
-    expect(html).toContain(`<img class="branch-divider__motif" src="${FAKE_MOTIF_DATA_URI}"`);
-  });
-
-  it('ainda produz o separador visual (linha) quando nao ha data URI', () => {
+  it('produz somente a linha do separador, nunca a imagem do motivo (que aparece so na capa/cabecalho global)', () => {
     const html = buildBranchDividerHtml();
     expect(html).toContain('branch-divider');
-    expect(html).not.toContain('branch-divider__motif');
+    expect(html).not.toContain('<img');
   });
 });
 
 describe('buildSignatureBlockHtml', () => {
-  it('sempre mostra a declaracao e as duas assinaturas, com ou sem motivo', () => {
+  it('sempre mostra a declaracao e as duas assinaturas, nunca a imagem do motivo', () => {
     const html = buildSignatureBlockHtml();
     expect(html).toContain('Declaro que conferi');
     expect(html).toContain('Assinatura do Vendedor');
     expect(html).toContain('Assinatura do Responsável');
+    expect(html).not.toContain('<img');
     expect(html).not.toContain('doc-footer-motif');
-  });
-
-  it('adiciona o acento discreto do rodape antes da assinatura quando ha data URI', () => {
-    const html = buildSignatureBlockHtml(FAKE_MOTIF_DATA_URI);
-    expect(html).toContain('doc-footer-motif');
-    expect(html.indexOf('doc-footer-motif')).toBeLessThan(html.indexOf('signature__declaration'));
   });
 });

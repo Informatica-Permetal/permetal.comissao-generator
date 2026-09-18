@@ -78,7 +78,7 @@ export function buildPrevisaoHtmlDocument(
       </tbody>
     </table>
     ${buildTotalBlockHtml('Total da Previsão', vm.total)}
-    ${buildSignatureBlockHtml(motifDataUri)}
+    ${buildSignatureBlockHtml()}
   </body>
 </html>`;
 }

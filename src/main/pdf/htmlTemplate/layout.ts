@@ -15,15 +15,21 @@ function buildMotifImgHtml(motifDataUri: string | null, className: string): stri
 }
 
 /**
- * Institutional letterhead (logo + corporate identity) plus a decorative
- * industrial motif. Shows, in order, exactly the fields required for every
- * document (separado, or one per branch inside a consolidado): grupo/
- * organização, razão social da matriz, endereço da matriz, filial, CNPJ da
- * filial, marca/logo - each line omitted (never invented) when its
- * underlying data is absent. Falls back to the branch's own identity alone
- * when it belongs to no known corporate group. Deliberately does NOT repeat
- * the specific seller identity or a generation timestamp - those live
- * exactly once, in `buildDocumentMetaHtml`/`buildConsolidatedMetaHtml`.
+ * Institutional letterhead (logo + corporate identity), optionally paired
+ * with the decorative industrial motif. Shows, in order, exactly the fields
+ * required for every document (separado, or one per branch inside a
+ * consolidado): grupo/organização, razão social da matriz, endereço da
+ * matriz, filial, CNPJ da filial, marca/logo - each line omitted (never
+ * invented) when its underlying data is absent. Falls back to the branch's
+ * own identity alone when it belongs to no known corporate group. Deliberately
+ * does NOT repeat the specific seller identity or a generation timestamp -
+ * those live exactly once, in `buildDocumentMetaHtml`/`buildConsolidatedMetaHtml`.
+ *
+ * The motif is meant to appear exactly once per document, in its one global
+ * header: a separado document's single call keeps it, but a consolidado's
+ * repeated per-branch calls (see `consolidatedTemplate.ts`) omit it - the
+ * motif already appears once in that document's own cover
+ * (`buildConsolidatedCoverHtml`).
  */
 export function buildDocumentHeaderHtml(company: PdfCompanyInfo, motifDataUri: string | null = null): string {
   const logoDataUri = company.logoPath ? embedImageAsDataUri(company.logoPath) : null;
@@ -205,17 +211,15 @@ export function buildBranchTableContextRowHtml(branchCode: string, branchName: s
 
 /**
  * Elegant, unambiguous separator between two consecutive filial sections in a
- * consolidado - never placed before the first section. Purely visual
- * wayfinding: the actual identity change is carried by the next section's own
+ * consolidado - never placed before the first section. A plain rule, never
+ * the industrial motif (that appears exactly once, in the document's own
+ * global cover header - see `buildConsolidatedCoverHtml`): the actual
+ * identity change is carried by the next section's own
  * `buildDocumentHeaderHtml` letterhead, this just makes the transition
  * impossible to miss when skimming a printed multi-filial document.
  */
-export function buildBranchDividerHtml(motifDataUri: string | null = null): string {
-  return `
-    <div class="branch-divider">
-      ${buildMotifImgHtml(motifDataUri, 'branch-divider__motif')}
-    </div>
-  `;
+export function buildBranchDividerHtml(): string {
+  return `<div class="branch-divider"></div>`;
 }
 
 export function buildSubtotalBlockHtml(label: string, value: string): string {
@@ -248,17 +252,12 @@ export function buildConsolidatedPrintHeaderTemplate(modeTitle: string, identity
 
 /**
  * Closing block of every document - the signature always appears exactly
- * once, at the very end (never per filial in a consolidado). `motifDataUri`
- * adds one small, discreet strip of the same industrial motif right above it
- * - a quiet closing flourish, never competing with the declaration/signature
- * text for attention.
+ * once, at the very end (never per filial in a consolidado). Never carries
+ * the industrial motif - that appears exactly once, in the document's own
+ * global header/cover, nowhere else.
  */
-export function buildSignatureBlockHtml(motifDataUri: string | null = null): string {
-  const footerMotifHtml = motifDataUri
-    ? `<div class="doc-footer-motif">${buildMotifImgHtml(motifDataUri, 'doc-footer-motif__img')}</div>`
-    : '';
+export function buildSignatureBlockHtml(): string {
   return `
-    ${footerMotifHtml}
     <section class="signature">
       <p class="signature__declaration">
         Declaro que conferi e estou ciente das informações e dos valores apresentados neste relatório.

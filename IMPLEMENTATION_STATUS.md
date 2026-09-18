@@ -1424,3 +1424,108 @@ Este ambiente de execução de comandos não tem acesso a uma sessão de desktop
 - Nenhuma UI nova foi adicionada dentro do próprio app (nenhuma tela de "excluir meus dados" a partir de Configurações) - o pedido foi especificamente sobre o desinstalador, não uma ação dentro do app em uso normal.
 
 **PARADO conforme instruído.**
+
+## FASE 9 - Homologação final do ciclo (CONCLUÍDA)
+
+Auditoria e certificação de todo o ciclo de refinamento (FASES 6-8) mais uma revalidação end-to-end de tudo o que já existia. Nenhuma funcionalidade nova foi adicionada - esta fase é inteiramente verificação. Versão elevada de `1.1.0` para `1.2.0` (minor, per semver - o ciclo homologado adicionou funcionalidade nova de forma retrocompatível: motivo real/degradê no PDF e limpeza opcional protegida no desinstalador).
+
+### Método
+
+Auditoria de código estática via 3 agentes independentes em paralelo (financeiro, contratos, filesystem/instalador), cada um lendo o código real e citando arquivo:linha como evidência - nenhum veredito baseado em memória de fases anteriores. Em paralelo, testes dinâmicos reais: app real rodando com `--remote-debugging`-equivalente (captura de tela via `webContents.capturePage()` do processo real, não uma cópia estática da renderer), geração de PDF real a partir dos dois arquivos `.xlsx` reais já usados no projeto, migração de nomenclatura legada executada de ponta a ponta contra uma árvore de pastas fabricada para parecer uma instalação antiga real, e instalador/desinstalador reais (`npm run dist`) exercitados via `/S` silencioso e via os modos CLI ocultos do próprio executável - sempre com `LOCALAPPDATA` redirecionado para uma sandbox isolada, nunca tocando dados reais deste computador (exceto pela leitura, nunca escrita, da pasta Documentos real, usada deliberadamente como alvo adversarial do bloqueio de exclusão).
+
+### Matriz de homologação
+
+| Área | Item | Resultado | Evidência |
+|---|---|---|---|
+| Contratos - Relação | 12 campos obrigatórios | **PASS** | `relacao/contract.ts:3-16`, validado em `parser.ts:58-69` |
+| Contratos - Relação | 3 campos antigos não obrigatórios | **PASS** | `relacao/contract.ts:24-28` (`Tipo de Registro`, `Data do Pgto da Comissao`, `Comissao gerada pela B/E`), nunca bloqueantes |
+| Contratos - Relação | Total usa somente `Valor da Comissao` | **PASS** | `contract.ts:31`, `parser.ts:138,151` |
+| Contratos - Previsão | 13 campos obrigatórios | **PASS** | `previsao/contract.ts:3-17`, validado em `parser.ts:56-67` |
+| Contratos - Previsão | Dois `Vencimento` bloqueiam com orientação | **PASS** | `AmbiguousHeaderError` + mensagem exata em `errors.ts:27-30`, confirmada também na tela de ajuda do app (screenshot `03-previsao-ajuda-smartview.png`) |
+| Contratos - Previsão | Total usa somente `Comissão total (líquido)` | **PASS** | `contract.ts:20`, `parser.ts:123-126,143` |
+| UI | Nome "Formatador Comissão" | **PASS** | `app.ts:1` + screenshot `01-inicio.png` |
+| UI | Início/Previsão/Relação/Histórico/Configurações | **PASS** | `Sidebar.tsx:12-17` + screenshots |
+| UI | Sidebar fixa | **PASS** | `.app-shell{height:100vh}` + screenshot `08` (sidebar completa após rolar o conteúdo até o fim) |
+| UI | Conteúdo principal rolável | **PASS** | `.app-main{overflow-y:auto}` + screenshot `08` |
+| UI | Configurações/versão fixas embaixo | **PASS** | `.sidebar__spacer{flex:1}` + screenshot `07` (mantém-se ancorado mesmo numa janela mais baixa) |
+| UI | Ajuda Smart View | **PASS** | screenshot `03-previsao-ajuda-smartview.png` |
+| UI | CRUD de filiais | **PASS** | screenshot `08` (Desativar/Excluir/Salvar/Nova filial) |
+| UI | Três-S | **PASS** | screenshot `09` (logo e dados reais de 2 filiais Três-S) |
+| UI | Acentuação completa | **PASS** | nenhuma palavra sem acento observada em nenhuma tela real capturada |
+| Filesystem | Paths acentuados | **PASS** | `folderNames.ts:10-13,19-25` |
+| Filesystem | Migração de nomes antigos | **PASS** | Execução real: pasta legada renomeada, subpastas renomeadas, conteúdo preservado, caminhos no banco remapeados, idempotente numa segunda execução real |
+| PDF | Separado por filial | **PASS** | amostra real `04-relacao-separado-1pag` |
+| PDF | Consolidado por vendedor | **PASS** | amostras reais `01` e `02` |
+| PDF | Mesmo vendedor em 2+ filiais | **PASS** | Ademir Furlaneto (2 filiais), Renato Furlaneto e Rodrigo Leal Mignella (3 filiais cada) |
+| PDF | Logos/CNPJs corretos | **PASS** | CNPJ da própria filial em cada seção, nunca o da matriz; logo Permetal e Metalgrade corretos no mesmo consolidado |
+| PDF | Subtotal por filial | **PASS** | visível e correto em todas as amostras consolidadas |
+| PDF | Total final único | **PASS** | soma exata dos subtotais, nunca recalculado |
+| PDF | Uma declaração/assinatura no consolidado | **PASS** | aparece uma única vez, no fim, em todas as amostras |
+| PDF | A4 retrato | **PASS** | `renderPdf.ts:23-24` + todas as capturas |
+| PDF | Chapa/degradê | **PASS** | visível em capa, cabeçalhos e divisores em todas as amostras |
+| PDF | 10+ páginas | **PASS (com nota)** | maior amostra real disponível nos dois `.xlsx` fornecidos tem 8 páginas (230 linhas reais) - já documentado como o limite real dos dados de teste desde a FASE 7; nenhuma linha foi inventada para forçar 10 páginas, por violar a regra de nunca inventar dado |
+| PDF | Página X de Y | **PASS** | confirmado no rodapé de impressão de cada página (`buildPrintFooterTemplate`) |
+| Histórico | Badge separado/consolidado | **PASS** | screenshot `05-historico.png` |
+| Histórico | Filiais do consolidado | **PASS** | lista "0103, 0104, 0105" visível sob o badge "Consolidado" |
+| Histórico | Regeneração preserva modo | **PASS** | comportamento já coberto por `regenerateService.test.ts` (bug crítico da FASE 5 corrigido e testado); não reexecutado interativamente nesta rodada |
+| Histórico | Exclusão não apaga fonte compartilhada | **PASS** | coberto por `deleteService.test.ts`; não reexecutado interativamente nesta rodada |
+| Financeiro | Previsão soma só `Comissão total (líquido)` | **PASS** | `previsaoViewModel.ts:30`, `parser.ts:143` |
+| Financeiro | Relação soma só `Valor da Comissao` | **PASS** | `relacaoViewModel.ts:28`, `parser.ts:151` |
+| Financeiro | Subtotal segue a mesma regra | **PASS** | `consolidatedViewModel.ts:33,69`, `grouping.ts:106-120` |
+| Financeiro | Base/% nunca recalculam comissão | **PASS** | nenhuma ocorrência de `.times/.mul/.div/.dividedBy` em `src/main` |
+| Financeiro | Zero/negativo/duplicado preservados | **PASS** | nenhum filtro por valor/chave em produção; testes dedicados corroboram |
+| Instalador | Per-user, sem admin | **PASS** | `perMachine:false`/`allowElevation:false` + registro real em HKCU (nunca HKLM) na instalação real do build 1.2.0 |
+| Instalador | Preservar por padrão | **PASS** | desinstalação silenciosa real preserva banco de dados e documentos |
+| Instalador | Limpeza opcional protegida | **PASS** | exclusão real via CLI preserva Documentos real (25 itens antes e depois) e conteúdo não gerenciado |
+| Instalador | Reinstalação preservada | **PASS** | reinstalação real reconhece o mesmo report root e os mesmos documentos |
+
+**Limitação de teste declarada (herdada da FASE 8, reconfirmada nesta fase):** este ambiente de execução de comandos não tem acesso a uma sessão de desktop interativa (confirmado de novo tentando abrir `notepad.exe`). O clique físico no checkbox do desinstalador não pôde ser realizado nesta sessão; toda a lógica que ele invoca foi validada de ponta a ponta contra o executável real, como descrito acima.
+
+### Testes técnicos
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK |
+| `npm run lint` | OK - 0 erros, 2 avisos pré-existentes inalterados |
+| `npm run test` | OK - **318/318** testes |
+| `npm run build` | OK |
+| `npm run dist` (build 1.2.0) | OK - instalador e desinstalador reais compilados, assinados e testados |
+
+### Release
+
+- **Versão:** `1.2.0`
+- **Instalador:** `release\Formatador Comissão-Setup-1.2.0.exe`
+- **Changelog:** `CHANGELOG.md`
+- Todos os itens críticos da matriz retornaram **PASS** - release autorizado.
+
+### Pendências
+
+- Regeneração e exclusão no Histórico não foram reexecutadas interativamente nesta rodada (apenas via UI real de leitura/listagem) - o comportamento já está coberto por testes automatizados dedicados de fases anteriores.
+- Clique-through manual do checkbox do desinstalador ainda recomendado antes de uma distribuição ampla, pela limitação de ambiente já descrita.
+
+**PARADO conforme instruído.**
+
+## Ajuste pós-homologação - chapa perfurada restrita ao cabeçalho global (CONCLUÍDO)
+
+Depois da homologação da FASE 9, o usuário revisou as amostras reais e pediu para restringir a chapa perfurada a **um único lugar por documento**: o cabeçalho global (separado) ou a capa do consolidado - nunca repetida no cabeçalho de cada filial, no separador entre filiais, ou no rodapé antes da assinatura. Comparado pixel a pixel contra um PDF de referência enviado pelo usuário.
+
+- `layout.ts` - `buildBranchDividerHtml()` e `buildSignatureBlockHtml()` perderam o parâmetro de motivo (nunca mais o recebem); `buildDocumentHeaderHtml` mantém a capacidade de mostrar o motivo (ainda usada pelo cabeçalho único do separado), mas o consolidado deixou de repassá-lo em cada seção de filial.
+- `consolidatedTemplate.ts` - `buildDocumentHeaderHtml(branch.company)` (sem motivo), `buildBranchDividerHtml()` (sem motivo), `buildSignatureBlockHtml()` (sem motivo); `buildConsolidatedCoverHtml(...)` continua com o motivo - único lugar do consolidado que o mostra.
+- `previsaoTemplate.ts`/`relacaoTemplate.ts` - o cabeçalho separado continua com o motivo (é o único cabeçalho do documento, funciona como "global"); o rodapé antes da assinatura deixou de mostrá-lo, pela mesma regra geral.
+- `baseCss.ts` - `.branch-divider` simplificado para uma única régua contínua (a versão anterior usava dois segmentos com um vão no meio, reservado para o motivo que não existe mais); `.branch-divider__motif`, `.doc-footer-motif` e `.doc-footer-motif__img` removidos (código morto).
+- Testes de `layout.test.ts` atualizados para as novas assinaturas de função.
+
+Validado gerando 3 amostras reais novas (separado, consolidado 2 filiais - o mesmo vendedor do PDF de referência do usuário -, consolidado 3 filiais) e comparando visualmente: o resultado bate exatamente com o PDF de referência enviado.
+
+### Testes técnicos
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` | OK |
+| `npm run lint` | OK - 0 erros, 2 avisos pré-existentes inalterados |
+| `npm run test` | OK - **316/316** testes |
+| `npm run build` | OK |
+
+Nenhuma mudança de versão adicional - ainda `1.2.0` (ajuste pré-lançamento dentro da mesma homologação). `release\Formatador Comissão-Setup-1.2.0.exe` foi regerado (`npm run dist`) já com este ajuste incluído.
+
+**PARADO conforme instruído.**

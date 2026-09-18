@@ -78,12 +78,12 @@ export function buildPrevisaoConsolidatedHtmlDocument(
         })
         .join('');
 
-      const divider = index > 0 ? buildBranchDividerHtml(motifDataUri) : '';
+      const divider = index > 0 ? buildBranchDividerHtml() : '';
 
       return `
         ${divider}
         <section class="branch-section">
-          ${buildDocumentHeaderHtml(branch.company, motifDataUri)}
+          ${buildDocumentHeaderHtml(branch.company)}
           <table>
             <colgroup>
               ${PREVISAO_COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
@@ -116,7 +116,7 @@ export function buildPrevisaoConsolidatedHtmlDocument(
     ${buildConsolidatedMetaHtml(vm.identity, generatedAtLabel)}
     ${branchesHtml}
     ${buildTotalBlockHtml('Total da Previsão', vm.total)}
-    ${buildSignatureBlockHtml(motifDataUri)}
+    ${buildSignatureBlockHtml()}
   </body>
 </html>`;
 }
@@ -144,12 +144,12 @@ export function buildRelacaoConsolidatedHtmlDocument(
         )
         .join('');
 
-      const divider = index > 0 ? buildBranchDividerHtml(motifDataUri) : '';
+      const divider = index > 0 ? buildBranchDividerHtml() : '';
 
       return `
         ${divider}
         <section class="branch-section">
-          ${buildDocumentHeaderHtml(branch.company, motifDataUri)}
+          ${buildDocumentHeaderHtml(branch.company)}
           <table>
             <colgroup>
               ${RELACAO_COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
@@ -182,7 +182,7 @@ export function buildRelacaoConsolidatedHtmlDocument(
     ${buildConsolidatedMetaHtml(vm.identity, generatedAtLabel)}
     ${branchesHtml}
     ${buildTotalBlockHtml('Total da Comissão', vm.total)}
-    ${buildSignatureBlockHtml(motifDataUri)}
+    ${buildSignatureBlockHtml()}
   </body>
 </html>`;
 }

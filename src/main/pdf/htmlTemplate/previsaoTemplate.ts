@@ -26,7 +26,11 @@ const COLUMNS: readonly ColumnDefinition[] = [
   { key: 'comissao', label: 'Comissão', width: '12%', numeric: true }
 ];
 
-export function buildPrevisaoHtmlDocument(vm: PrevisaoPdfViewModel, generatedAtLabel: string): string {
+export function buildPrevisaoHtmlDocument(
+  vm: PrevisaoPdfViewModel,
+  generatedAtLabel: string,
+  motifDataUri: string | null = null
+): string {
   const rowsHtml = vm.sections
     .map((section) => {
       const sectionRow = `<tr class="section-row"><td colspan="${COLUMNS.length}">${escapeHtml(section.classificacao)}</td></tr>`;
@@ -57,7 +61,7 @@ export function buildPrevisaoHtmlDocument(vm: PrevisaoPdfViewModel, generatedAtL
     <style>${BASE_CSS}</style>
   </head>
   <body>
-    ${buildDocumentHeaderHtml(vm.company)}
+    ${buildDocumentHeaderHtml(vm.company, motifDataUri)}
     ${buildTitleHtml('Previsão de Comissões', 'Relatório de previsão para conferência')}
     ${buildDocumentMetaHtml(vm.identity, vm.company, generatedAtLabel)}
     <table>
@@ -74,7 +78,7 @@ export function buildPrevisaoHtmlDocument(vm: PrevisaoPdfViewModel, generatedAtL
       </tbody>
     </table>
     ${buildTotalBlockHtml('Total da Previsão', vm.total)}
-    ${buildSignatureBlockHtml()}
+    ${buildSignatureBlockHtml(motifDataUri)}
   </body>
 </html>`;
 }

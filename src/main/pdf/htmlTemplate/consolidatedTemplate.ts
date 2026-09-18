@@ -2,12 +2,13 @@ import { escapeHtml } from '../format';
 import type { PrevisaoConsolidatedPdfViewModel, RelacaoConsolidatedPdfViewModel } from '../types';
 import { BASE_CSS } from './baseCss';
 import {
+  buildBranchDividerHtml,
   buildBranchTableContextRowHtml,
+  buildConsolidatedCoverHtml,
   buildConsolidatedMetaHtml,
   buildDocumentHeaderHtml,
   buildSignatureBlockHtml,
   buildSubtotalBlockHtml,
-  buildTitleHtml,
   buildTotalBlockHtml
 } from './layout';
 
@@ -50,10 +51,11 @@ const RELACAO_COLUMNS: readonly PrevisaoColumnDefinition[] = [
 
 export function buildPrevisaoConsolidatedHtmlDocument(
   vm: PrevisaoConsolidatedPdfViewModel,
-  generatedAtLabel: string
+  generatedAtLabel: string,
+  motifDataUri: string | null = null
 ): string {
   const branchesHtml = vm.branches
-    .map((branch) => {
+    .map((branch, index) => {
       const rowsHtml = branch.sections
         .map((section) => {
           const sectionRow = `<tr class="section-row"><td colspan="${PREVISAO_COLUMNS.length}">${escapeHtml(section.classificacao)}</td></tr>`;
@@ -76,9 +78,12 @@ export function buildPrevisaoConsolidatedHtmlDocument(
         })
         .join('');
 
+      const divider = index > 0 ? buildBranchDividerHtml(motifDataUri) : '';
+
       return `
+        ${divider}
         <section class="branch-section">
-          ${buildDocumentHeaderHtml(branch.company)}
+          ${buildDocumentHeaderHtml(branch.company, motifDataUri)}
           <table>
             <colgroup>
               ${PREVISAO_COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
@@ -107,21 +112,22 @@ export function buildPrevisaoConsolidatedHtmlDocument(
     <style>${BASE_CSS}</style>
   </head>
   <body>
-    ${buildTitleHtml('Previsão de Comissões — Consolidado por Vendedor', 'Relatório de previsão para conferência')}
+    ${buildConsolidatedCoverHtml('Previsão de Comissões — Consolidado por Vendedor', 'Relatório de previsão para conferência', motifDataUri)}
     ${buildConsolidatedMetaHtml(vm.identity, generatedAtLabel)}
     ${branchesHtml}
     ${buildTotalBlockHtml('Total da Previsão', vm.total)}
-    ${buildSignatureBlockHtml()}
+    ${buildSignatureBlockHtml(motifDataUri)}
   </body>
 </html>`;
 }
 
 export function buildRelacaoConsolidatedHtmlDocument(
   vm: RelacaoConsolidatedPdfViewModel,
-  generatedAtLabel: string
+  generatedAtLabel: string,
+  motifDataUri: string | null = null
 ): string {
   const branchesHtml = vm.branches
-    .map((branch) => {
+    .map((branch, index) => {
       const rowsHtml = branch.rows
         .map(
           (row) => `
@@ -138,9 +144,12 @@ export function buildRelacaoConsolidatedHtmlDocument(
         )
         .join('');
 
+      const divider = index > 0 ? buildBranchDividerHtml(motifDataUri) : '';
+
       return `
+        ${divider}
         <section class="branch-section">
-          ${buildDocumentHeaderHtml(branch.company)}
+          ${buildDocumentHeaderHtml(branch.company, motifDataUri)}
           <table>
             <colgroup>
               ${RELACAO_COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
@@ -169,11 +178,11 @@ export function buildRelacaoConsolidatedHtmlDocument(
     <style>${BASE_CSS}</style>
   </head>
   <body>
-    ${buildTitleHtml('Relação de Comissões — Consolidado por Vendedor', 'Comissões para conferência e pagamento')}
+    ${buildConsolidatedCoverHtml('Relação de Comissões — Consolidado por Vendedor', 'Comissões para conferência e pagamento', motifDataUri)}
     ${buildConsolidatedMetaHtml(vm.identity, generatedAtLabel)}
     ${branchesHtml}
     ${buildTotalBlockHtml('Total da Comissão', vm.total)}
-    ${buildSignatureBlockHtml()}
+    ${buildSignatureBlockHtml(motifDataUri)}
   </body>
 </html>`;
 }

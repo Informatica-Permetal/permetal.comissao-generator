@@ -10,6 +10,8 @@ import { listDocuments } from '../storage/documentRepository';
 import { deleteBatch, deleteDocument } from '../batches/deleteService';
 import { regenerateBatch, regenerateDocument } from '../batches/regenerateService';
 import { renderHtmlToPdf } from '../pdf/renderPdf';
+import { embedImageAsDataUri } from '../pdf/embedImage';
+import { resolvePerforatedMetalMotifPath } from '../app/assets';
 
 interface HistoryHandlerDeps {
   db: DatabaseSync;
@@ -44,7 +46,8 @@ export function registerHistoryHandlers(deps: HistoryHandlerDeps): void {
       reportRoot,
       lookupCompanyProfile: (branchCode) => getCompanyProfile(db, branchCode),
       lookupCompanyGroup: (groupKey) => (groupKey ? getCompanyGroup(db, groupKey) : null),
-      renderPdf: renderHtmlToPdf
+      renderPdf: renderHtmlToPdf,
+      motifDataUri: embedImageAsDataUri(resolvePerforatedMetalMotifPath())
     });
   });
 
@@ -56,7 +59,8 @@ export function registerHistoryHandlers(deps: HistoryHandlerDeps): void {
       reportRoot,
       lookupCompanyProfile: (branchCode) => getCompanyProfile(db, branchCode),
       lookupCompanyGroup: (groupKey) => (groupKey ? getCompanyGroup(db, groupKey) : null),
-      renderPdf: renderHtmlToPdf
+      renderPdf: renderHtmlToPdf,
+      motifDataUri: embedImageAsDataUri(resolvePerforatedMetalMotifPath())
     });
   });
 }

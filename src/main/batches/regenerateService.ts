@@ -19,6 +19,7 @@ export interface RegenerateDeps {
   lookupCompanyProfile: (branchCode: string) => CompanyProfile | null;
   lookupCompanyGroup?: (groupKey: string | null) => CompanyGroup | null;
   renderPdf: (html: string, options: RenderPdfOptions) => Promise<Buffer>;
+  motifDataUri?: string | null;
 }
 
 /**
@@ -46,7 +47,7 @@ export async function regenerateBatch(batchId: string, deps: RegenerateDeps): Pr
 }
 
 async function regenerateBatchLocked(batchId: string, deps: RegenerateDeps): Promise<RegenerateResult> {
-  const { db, reportRoot, lookupCompanyProfile, lookupCompanyGroup, renderPdf } = deps;
+  const { db, reportRoot, lookupCompanyProfile, lookupCompanyGroup, renderPdf, motifDataUri } = deps;
 
   const batch = getBatchById(db, batchId);
   if (!batch) {
@@ -81,7 +82,8 @@ async function regenerateBatchLocked(batchId: string, deps: RegenerateDeps): Pro
       lookupCompanyProfile,
       lookupCompanyGroup,
       renderPdf,
-      modeBySeller
+      modeBySeller,
+      motifDataUri
     });
 
     log('info', 'batch regenerated', { batchId, mode: batch.mode, outputCount: result.generated.length });

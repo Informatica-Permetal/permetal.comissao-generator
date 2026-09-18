@@ -26,3 +26,11 @@ export function resolveAppIconPath(): string {
     ? join(process.resourcesPath, 'icon.ico')
     : join(__dirname, '..', '..', 'resources', 'icon.ico');
 }
+
+/** The real photographic "chapa perfurada" asset used as the PDF's decorative industrial motif - never generated at runtime. */
+export function resolvePerforatedMetalMotifPath(): string {
+  const dir = app.isPackaged
+    ? join(process.resourcesPath, 'pdf-motifs')
+    : join(__dirname, '..', '..', 'resources', 'pdf-motifs');
+  return join(dir, 'chapa-perfurada.png');
+}

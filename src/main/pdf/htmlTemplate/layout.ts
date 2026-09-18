@@ -1,7 +1,18 @@
 import { embedImageAsDataUri } from '../embedImage';
 import { escapeHtml } from '../format';
-import { buildPerforatedMetalMotif } from './perforatedMetal';
 import type { ConsolidatedPdfIdentity, PdfCompanyInfo, PdfDocumentIdentity } from '../types';
+
+/**
+ * Renders the real "chapa perfurada" (perforated metal sheet) photo as the
+ * decorative industrial motif - a local asset embedded as a data: URI (see
+ * `embedImageAsDataUri`), never generated or fetched at runtime. `null` when
+ * the caller has no motif to show (e.g. the asset is missing on disk), in
+ * which case the motif is simply omitted - never a placeholder or a broken
+ * image reference.
+ */
+function buildMotifImgHtml(motifDataUri: string | null, className: string): string {
+  return motifDataUri ? `<img class="${className}" src="${motifDataUri}" alt="" />` : '';
+}
 
 /**
  * Institutional letterhead (logo + corporate identity) plus a decorative
@@ -14,7 +25,7 @@ import type { ConsolidatedPdfIdentity, PdfCompanyInfo, PdfDocumentIdentity } fro
  * the specific seller identity or a generation timestamp - those live
  * exactly once, in `buildDocumentMetaHtml`/`buildConsolidatedMetaHtml`.
  */
-export function buildDocumentHeaderHtml(company: PdfCompanyInfo): string {
+export function buildDocumentHeaderHtml(company: PdfCompanyInfo, motifDataUri: string | null = null): string {
   const logoDataUri = company.logoPath ? embedImageAsDataUri(company.logoPath) : null;
   const logoHtml = logoDataUri
     ? `<img class="doc-header__logo" src="${logoDataUri}" alt="${escapeHtml(company.displayName)}" />`
@@ -50,7 +61,7 @@ export function buildDocumentHeaderHtml(company: PdfCompanyInfo): string {
           ${companyLines.map((line) => `<span>${line}</span>`).join('')}
         </div>
       </div>
-      ${buildPerforatedMetalMotif()}
+      ${buildMotifImgHtml(motifDataUri, 'doc-header__motif')}
     </header>
   `;
 }
@@ -69,6 +80,26 @@ export function buildTitleHtml(title: string, subtitle: string): string {
       <h1>${escapeHtml(title)}</h1>
       <p>${escapeHtml(subtitle)}</p>
     </div>
+  `;
+}
+
+/**
+ * First-page cover for a consolidado PDF - stands in for `buildDocumentHeaderHtml`
+ * at the top of the document, since a consolidado's title block carries no
+ * company/branch identity (see `buildConsolidatedMetaHtml`). Pairs the title
+ * with the same industrial motif used in every branch's own letterhead, so
+ * the document opens with a consistent visual identity before any specific
+ * filial is shown.
+ */
+export function buildConsolidatedCoverHtml(title: string, subtitle: string, motifDataUri: string | null = null): string {
+  return `
+    <header class="doc-cover">
+      <div class="doc-cover__text">
+        <h1>${escapeHtml(title)}</h1>
+        <p>${escapeHtml(subtitle)}</p>
+      </div>
+      ${buildMotifImgHtml(motifDataUri, 'doc-cover__motif')}
+    </header>
   `;
 }
 
@@ -172,6 +203,21 @@ export function buildBranchTableContextRowHtml(branchCode: string, branchName: s
   return `<tr class="branch-context-row"><td colspan="${columnCount}">Filial ${escapeHtml(branchCode)} - ${escapeHtml(branchName)}</td></tr>`;
 }
 
+/**
+ * Elegant, unambiguous separator between two consecutive filial sections in a
+ * consolidado - never placed before the first section. Purely visual
+ * wayfinding: the actual identity change is carried by the next section's own
+ * `buildDocumentHeaderHtml` letterhead, this just makes the transition
+ * impossible to miss when skimming a printed multi-filial document.
+ */
+export function buildBranchDividerHtml(motifDataUri: string | null = null): string {
+  return `
+    <div class="branch-divider">
+      ${buildMotifImgHtml(motifDataUri, 'branch-divider__motif')}
+    </div>
+  `;
+}
+
 export function buildSubtotalBlockHtml(label: string, value: string): string {
   return `
     <div class="subtotal-block">
@@ -200,8 +246,19 @@ export function buildConsolidatedPrintHeaderTemplate(modeTitle: string, identity
   `;
 }
 
-export function buildSignatureBlockHtml(): string {
+/**
+ * Closing block of every document - the signature always appears exactly
+ * once, at the very end (never per filial in a consolidado). `motifDataUri`
+ * adds one small, discreet strip of the same industrial motif right above it
+ * - a quiet closing flourish, never competing with the declaration/signature
+ * text for attention.
+ */
+export function buildSignatureBlockHtml(motifDataUri: string | null = null): string {
+  const footerMotifHtml = motifDataUri
+    ? `<div class="doc-footer-motif">${buildMotifImgHtml(motifDataUri, 'doc-footer-motif__img')}</div>`
+    : '';
   return `
+    ${footerMotifHtml}
     <section class="signature">
       <p class="signature__declaration">
         Declaro que conferi e estou ciente das informações e dos valores apresentados neste relatório.

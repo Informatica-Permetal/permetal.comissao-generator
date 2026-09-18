@@ -1306,3 +1306,59 @@ Novos/estendidos: `src/main/pdf/format.test.ts` (5 testes de `computePeriodoAnal
 - Nenhuma nova ação de UI foi adicionada nesta fase; o conteúdo final do PDF é gerado pelo mesmo pipeline de geração já existente (FASE 5), sem nenhuma mudança de UX de escolha separado/consolidado.
 
 **PARADO conforme instruído.**
+
+## FASE 7 - Revisão final de design: chapa perfurada real, capa do consolidado e paginação (CONCLUÍDA)
+
+A FASE 6 entregou o conteúdo final dos PDFs usando um motivo decorativo gerado em SVG (`buildPerforatedMetalMotif`, puramente sintético). Esta fase substitui esse placeholder pela foto real de chapa perfurada fornecida pelo usuário, refina a capa do consolidado, o separador entre filiais e a paginação, e corrige um bug real de paginação encontrado só com o teste de 230 linhas/8 páginas. Nenhuma regra de parser, histórico ou agrupamento foi tocada.
+
+### Asset real - chapa perfurada
+
+- `resources/pdf-motifs/chapa-perfurada.png` (novo) - a foto industrial anexada pelo usuário (PNG truecolor+alpha, 2172×724, com fade real de transparente à esquerda até a chapa metálica à direita), copiada exatamente como fornecida. **Nenhuma imagem é gerada em runtime.**
+- `src/main/app/assets.ts` - novo `resolvePerforatedMetalMotifPath()`, seguindo exatamente o mesmo padrão já usado por `resolveBrandLogosDir()` (caminho diferente em dev vs. pacote via `app.isPackaged`/`extraResources`).
+- `package.json` - novo `build.extraResources` apontando `resources/pdf-motifs` → `pdf-motifs`, ao lado do já existente `brand-logos`.
+- `src/main/pdf/htmlTemplate/perforatedMetal.ts` (removido) - o gerador de SVG sintético não é mais necessário; o motivo agora é sempre a foto real, embutida como `data:` URI via `embedImageAsDataUri` (mecanismo já existente, reaproveitado sem alteração) - nunca depende de acesso a arquivo em tempo de impressão, nunca busca URL remota.
+- O data URI é resolvido **uma única vez por geração/regeneração** (em `pdfHandlers.ts`/`historyHandlers.ts`, no mesmo lugar e no mesmo padrão de `lookupCompanyGroup`) e passado como `motifDataUri: string | null` através de toda a cadeia (`GenerateReportPdfsDeps` → `PublishDeps`/`RunBatchGenerationDeps`/`RegenerateDeps` → cada template) - nunca relido do disco por documento. Ausência do arquivo (`embedImageAsDataUri` retorna `null`) simplesmente omite o motivo em todo lugar, sem placeholder quebrado.
+
+### Onde a chapa aparece
+
+- **Cabeçalho institucional** (`buildDocumentHeaderHtml`, usado no separado e em cada seção de filial do consolidado): recorte compacto (148×68px, `object-fit: cover` alinhado à direita) no canto superior direito - substitui exatamente o antigo SVG, mesmo lugar, mesmo papel.
+- **Capa do consolidado** (`buildConsolidatedCoverHtml`, nova função - substitui `buildTitleHtml` só no consolidado): banner mais largo (84px de altura, `object-fit: contain`) com o fade completo preservado, a "arte industrial" pedida para a primeira página - ao lado do título, vendedor e período, nunca com dado de filial/empresa.
+- **Separador entre filiais** (`buildBranchDividerHtml`, nova função, chamada em `consolidatedTemplate.ts` entre seções consecutivas, nunca antes da primeira): uma linha fina com um recorte pequeno (22px) e discreto (opacidade 0.55) do mesmo motivo ao centro - a troca de filial fica visualmente inequívoca mesmo antes de ler o novo cabeçalho institucional completo que vem logo em seguida.
+- **Rodapé discreto** (`buildSignatureBlockHtml`, ganhou o parâmetro `motifDataUri`): uma tira pequena (15px, opacidade 0.4) alinhada à direita, uma única vez, imediatamente antes da declaração/assinatura final - nunca por página, nunca por filial.
+
+### Bug real de paginação encontrado e corrigido
+
+Ao gerar a amostra multipágina com o vendedor real RENATO FURLANETO (230 linhas reais, 3 filiais), a primeira seção de filial (0103) pulava inteira para a página 2, deixando a página 1 (capa + metadados) quase toda em branco - um desperdício real de espaço, não um requisito. Causa: `.branch-section { break-inside: avoid-page }` (herdado da FASE 5) tenta manter a seção inteira sem quebra: como uma filial real com 162 linhas é inevitavelmente maior que uma página inteira, essa regra nunca pode ser honrada mesmo assim, e o único efeito prático dela era forçar a seção a começar sempre numa página nova, mesmo quando a página anterior tinha espaço de sobra. Corrigido removendo `break-inside: avoid-page` de `.branch-section` em `baseCss.ts` - a proteção contra órfãos continua garantida pelas regras já existentes e mais específicas (`.doc-header` com `break-inside: avoid` + `break-after: avoid-page`, `.subtotal-block` com `break-inside: avoid`). Após o fix, a mesma amostra real caiu de 9 para 8 páginas, com a filial 0103 começando a preencher a página 1 imediatamente após os metadados, exatamente como esperado.
+
+### Validação visual real (não só testes automatizados)
+
+Conforme instruído, o critério de conclusão não foi "os testes passaram" - foram geradas 5 amostras reais (usando os mesmos dois arquivos `.xlsx` reais já validados nesta conversa) e cada página relevante foi inspecionada visualmente via screenshot real (renderizada pelo Chromium do próprio Electron, não apenas texto extraído):
+
+1. **Relação separada, 1 página**: FERNANDO FILHO (000103), filial única 0104, 18 linhas reais.
+2. **Previsão separada**: mesmo vendedor, 19 linhas reais, 2 páginas (tabela cabe na página 1; total+assinatura ficam na página 2, cabeçalho compacto correto).
+3. **Consolidado 2 filiais**: ADEMIR FURLANETO (000001), Previsão, filiais 0103+0104.
+4. **Consolidado 3 filiais**: RODRIGO LEAL MIGNELLA (000097), Relação - confirmado visualmente que a filial 0105 (marca "Metalgrade", logo diferente) mantém o mesmo grupo corporativo "Permetal S.A. Metais Perfurados" que as filiais 0103/0104 (marca "Permetal"), exatamente conforme a regra "cada filial mantém sua identidade, mesmo grupo compartilhado".
+5. **Multipágina**: RENATO FURLANETO (000004), Relação, 230 linhas reais / 3 filiais / 8 páginas - o maior conjunto real disponível nos dois arquivos anexados (não foi inventado nenhum dado extra só para atingir um número redondo de páginas). Confirmado visualmente, página por página: cabeçalho de tabela e linha "Filial X - Nome" repetindo em toda página de continuação; transição de filial com divisor + cabeçalho institucional completo novo, nunca cortado; bloco de subtotal nunca partido entre páginas (a correção da FASE 6 continua válida); total final e assinatura aparecendo uma única vez, na última página; nenhuma linha perdida (`Base da Comissão`/`Valor da Comissão` batendo com os subtotais e o total geral).
+
+Também confirmado por leitura direta dos bytes do PDF (não apenas da renderização): todas as cores realmente usadas no conteúdo (`rg`/`RG` nos content streams) são tons de cinza neutros ou quase-neutros, nunca uma cor saturada - o app renderizador usado para tirar os screenshots (visor de PDF do Chromium) exibiu alguns números com destaque azul/vermelho por conta própria (detecção automática de padrões tipo telefone, um comportamento do próprio visor, não do arquivo - confirmado inspecionando o PDF bruto e não encontrando nenhuma anotação `/Link`/`/URI` real nele).
+
+### Testes automatizados
+
+Novos: `src/main/pdf/htmlTemplate/layout.test.ts` ganhou testes para `buildDocumentHeaderHtml` (motivo presente/ausente), `buildConsolidatedCoverHtml` (motivo, nunca dado de filial), `buildBranchDividerHtml` (com/sem motivo) e `buildSignatureBlockHtml` (acento do rodapé antes da assinatura). `generateReportPdfs.test.ts` ganhou testes confirmando que `motifDataUri` chega ao HTML final tanto no separado quanto no consolidado, e que um consolidado de 3 filiais produz exatamente 2 divisores (nunca antes da primeira seção).
+
+### Testes técnicos
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` (node + web) | OK |
+| `npm run lint` | OK - 0 erros, 2 avisos pré-existentes inalterados |
+| `npm run test` | OK - **291/291** testes (10 novos) |
+| `npm run build` | OK |
+
+### Pendências / observações
+
+- `npm run dist` não foi regenerado (o novo `extraResources` de `pdf-motifs` só é exercitado de fato num build empacotado - a lógica de resolução de caminho segue exatamente o padrão já testado indiretamente de `resolveBrandLogosDir`).
+- O destaque azul/vermelho ocasional em números ao abrir o PDF no visor do Chromium/Edge é um comportamento do visor (detecção de padrão tipo telefone), não do arquivo gerado - não há nada a corrigir no lado da geração, e outros visores de PDF não necessariamente reproduzem esse comportamento.
+- Nenhuma nova ação de UI foi adicionada; o pipeline de escolha separado/consolidado (FASE 5) e o conteúdo/campos exigidos (FASE 6) permanecem inalterados - esta fase é puramente de acabamento visual.
+
+**PARADO conforme instruído.**

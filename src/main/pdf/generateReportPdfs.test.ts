@@ -9,6 +9,7 @@ import type { RelacaoParsedRow } from '../reports/relacao/parser';
 import { generatePrevisaoPdfs, generateRelacaoPdfs } from './generateReportPdfs';
 
 const FAKE_PDF_BUFFER = Buffer.from('%PDF-1.7 fake');
+const FAKE_MOTIF_DATA_URI = 'data:image/png;base64,ZmFrZQ==';
 
 const COMPANY_0103: CompanyProfile = {
   branchCode: '0103',
@@ -142,6 +143,37 @@ describe('generatePrevisaoPdfs', () => {
     expect(htmlPassedToRender).toContain('Total da Previsão');
   });
 
+  it('inclui a imagem real do motivo (chapa perfurada) no cabecalho quando motifDataUri e fornecido', async () => {
+    const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
+    await generatePrevisaoPdfs(
+      {
+        headerRowNumber: 1,
+        warnings: [],
+        rows: [previsaoRow()],
+        groups: [
+          {
+            branchCode: '0103',
+            branchName: 'PERMETAL SAO PAULO',
+            sellerCode: '000090',
+            sellerName: 'CARLOS EDUARDO ROSA',
+            rows: [previsaoRow()],
+            total: new Decimal('30.80')
+          }
+        ]
+      },
+      {
+        reportRoot,
+        generatedAt: new Date(Date.UTC(2026, 8, 10)),
+        lookupCompanyProfile: (code) => (code === '0103' ? COMPANY_0103 : null),
+        renderPdf,
+        motifDataUri: FAKE_MOTIF_DATA_URI
+      }
+    );
+
+    const html = renderPdf.mock.calls[0][0] as string;
+    expect(html).toContain(`src="${FAKE_MOTIF_DATA_URI}"`);
+  });
+
   it('gera um arquivo separado por vendedor+filial quando ha varios grupos', async () => {
     const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
     const result = await generatePrevisaoPdfs(
@@ -246,6 +278,36 @@ describe('generatePrevisaoPdfs', () => {
     expect(html).toContain('R$ 5,00');
     expect(html).toContain('R$ 35,00');
     expect(html).toContain('Consolidado');
+  });
+
+  it('consolidado com 3 filiais mostra exatamente 2 separadores elegantes entre secoes (nunca antes da primeira)', async () => {
+    const renderPdf = vi.fn().mockResolvedValue(FAKE_PDF_BUFFER);
+    await generatePrevisaoPdfs(
+      {
+        headerRowNumber: 1,
+        warnings: [],
+        rows: [],
+        groups: [
+          { branchCode: '0103', branchName: 'PERMETAL SAO PAULO', sellerCode: '000097', sellerName: 'RODRIGO LEAL MIGNELLA', rows: [previsaoRow({ comissaoTotalLiquido: new Decimal('10.00') })], total: new Decimal('10.00') },
+          { branchCode: '0104', branchName: 'PERMETAL CRAVINHOS', sellerCode: '000097', sellerName: 'RODRIGO LEAL MIGNELLA', rows: [previsaoRow({ comissaoTotalLiquido: new Decimal('20.00') })], total: new Decimal('20.00') },
+          { branchCode: '0105', branchName: 'METALGRADE NOVA', sellerCode: '000097', sellerName: 'RODRIGO LEAL MIGNELLA', rows: [previsaoRow({ comissaoTotalLiquido: new Decimal('5.00') })], total: new Decimal('5.00') }
+        ]
+      },
+      {
+        reportRoot,
+        generatedAt: new Date(Date.UTC(2026, 8, 15)),
+        lookupCompanyProfile: companyLookup({ '0103': COMPANY_0103, '0104': COMPANY_0104, '0105': COMPANY_0105 }),
+        modeBySeller: new Map([['000097', 'consolidated_by_seller']]),
+        renderPdf,
+        motifDataUri: FAKE_MOTIF_DATA_URI
+      }
+    );
+
+    const html = renderPdf.mock.calls[0][0] as string;
+    // Conta apenas o elemento real no corpo do documento, nunca a regra CSS (que sempre existe no <style>).
+    expect((html.match(/<div class="branch-divider">/g) ?? []).length).toBe(2);
+    expect(html).toContain(`src="${FAKE_MOTIF_DATA_URI}"`);
+    expect(html).toContain('<img class="doc-cover__motif"'); // capa do consolidado tambem mostra o motivo
   });
 
   it('lote com escolha mista: um vendedor consolidado e outro separado geram documentos independentes', async () => {

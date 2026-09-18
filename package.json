@@ -67,6 +67,10 @@
         "to": "brand-logos"
       },
       {
+        "from": "resources/pdf-motifs",
+        "to": "pdf-motifs"
+      },
+      {
         "from": "resources/icon.ico",
         "to": "icon.ico"
       }

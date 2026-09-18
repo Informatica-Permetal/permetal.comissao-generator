@@ -51,6 +51,8 @@ export interface RunBatchGenerationDeps {
   appVersion: string;
   /** Injected so this can be unit-tested without a real Electron BrowserWindow. */
   renderPdf: (html: string, options: RenderPdfOptions) => Promise<Buffer>;
+  /** The "chapa perfurada" asset pre-embedded as a data: URI - see `GenerateReportPdfsDeps`. */
+  motifDataUri?: string | null;
 }
 
 export const TEMPLATE_VERSION = '1';
@@ -63,6 +65,7 @@ export interface PublishDeps {
   renderPdf: (html: string, options: RenderPdfOptions) => Promise<Buffer>;
   /** Per-seller grouping choice; a seller absent (or with a single branch) always publishes `separate_by_branch`. */
   modeBySeller?: ReadonlyMap<string, GroupingMode>;
+  motifDataUri?: string | null;
 }
 
 /**
@@ -81,7 +84,7 @@ export async function publishGeneratedDocuments(
   generatedAt: Date,
   deps: PublishDeps
 ): Promise<GenerateReportResult> {
-  const { db, reportRoot, lookupCompanyProfile, lookupCompanyGroup, renderPdf, modeBySeller } = deps;
+  const { db, reportRoot, lookupCompanyProfile, lookupCompanyGroup, renderPdf, modeBySeller, motifDataUri } = deps;
 
   evacuateGeradosToHistorico(db, reportRoot, mode);
 
@@ -91,7 +94,8 @@ export async function publishGeneratedDocuments(
     lookupCompanyProfile,
     lookupCompanyGroup,
     renderPdf,
-    modeBySeller
+    modeBySeller,
+    motifDataUri
   };
   const result =
     mode === 'Previsao'
@@ -172,7 +176,7 @@ async function runBatchGenerationLocked(
   deps: RunBatchGenerationDeps
 ): Promise<GenerateReportResult> {
   const { mode, batchId, sourcePath, sourceKind, workspaceFilePath, groupingChoices } = params;
-  const { db, reportRoot, lookupCompanyProfile, lookupCompanyGroup, appVersion, renderPdf } = deps;
+  const { db, reportRoot, lookupCompanyProfile, lookupCompanyGroup, appVersion, renderPdf, motifDataUri } = deps;
   const modeBySeller = new Map(Object.entries(groupingChoices ?? {}));
 
   const parseResult =
@@ -207,7 +211,8 @@ async function runBatchGenerationLocked(
       lookupCompanyProfile,
       lookupCompanyGroup,
       renderPdf,
-      modeBySeller
+      modeBySeller,
+      motifDataUri
     });
 
     updateBatchStatus(db, batchId, 'archiving');

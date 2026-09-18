@@ -26,7 +26,11 @@ const COLUMNS: readonly ColumnDefinition[] = [
   { key: 'valorDaComissao', label: 'Valor da Comissão', width: '15%', numeric: true }
 ];
 
-export function buildRelacaoHtmlDocument(vm: RelacaoPdfViewModel, generatedAtLabel: string): string {
+export function buildRelacaoHtmlDocument(
+  vm: RelacaoPdfViewModel,
+  generatedAtLabel: string,
+  motifDataUri: string | null = null
+): string {
   const rowsHtml = vm.rows
     .map(
       (row) => `
@@ -51,7 +55,7 @@ export function buildRelacaoHtmlDocument(vm: RelacaoPdfViewModel, generatedAtLab
     <style>${BASE_CSS}</style>
   </head>
   <body>
-    ${buildDocumentHeaderHtml(vm.company)}
+    ${buildDocumentHeaderHtml(vm.company, motifDataUri)}
     ${buildTitleHtml('Relação de Comissões', 'Comissões para conferência e pagamento')}
     ${buildDocumentMetaHtml(vm.identity, vm.company, generatedAtLabel)}
     <table>
@@ -68,7 +72,7 @@ export function buildRelacaoHtmlDocument(vm: RelacaoPdfViewModel, generatedAtLab
       </tbody>
     </table>
     ${buildTotalBlockHtml('Total da Comissão', vm.total)}
-    ${buildSignatureBlockHtml()}
+    ${buildSignatureBlockHtml(motifDataUri)}
   </body>
 </html>`;
 }

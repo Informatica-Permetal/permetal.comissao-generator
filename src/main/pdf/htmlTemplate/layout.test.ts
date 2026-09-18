@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { PdfCompanyInfo, PdfDocumentIdentity, ConsolidatedPdfIdentity } from '../types';
 import {
+  buildBranchDividerHtml,
   buildBranchTableContextRowHtml,
+  buildConsolidatedCoverHtml,
   buildConsolidatedMetaHtml,
   buildConsolidatedPrintHeaderTemplate,
   buildDocumentHeaderHtml,
-  buildDocumentMetaHtml
+  buildDocumentMetaHtml,
+  buildSignatureBlockHtml
 } from './layout';
+
+const FAKE_MOTIF_DATA_URI = 'data:image/png;base64,ZmFrZQ==';
 
 const COMPANY_NO_GROUP: PdfCompanyInfo = {
   logoPath: null,
@@ -168,5 +173,68 @@ describe('buildBranchTableContextRowHtml', () => {
     expect(html).toContain('Filial 0105 - METALGRADE NOVA');
     expect(html).toContain('colspan="7"');
     expect(html).toContain('branch-context-row');
+  });
+});
+
+describe('buildDocumentHeaderHtml - motivo industrial (chapa perfurada)', () => {
+  it('renderiza a imagem real quando um data URI e fornecido', () => {
+    const html = buildDocumentHeaderHtml(COMPANY_NO_GROUP, FAKE_MOTIF_DATA_URI);
+    expect(html).toContain(`<img class="doc-header__motif" src="${FAKE_MOTIF_DATA_URI}"`);
+  });
+
+  it('omite a imagem (nunca um placeholder gerado) quando nao ha data URI', () => {
+    const html = buildDocumentHeaderHtml(COMPANY_NO_GROUP);
+    expect(html).not.toContain('doc-header__motif');
+    expect(html).not.toContain('<svg');
+  });
+});
+
+describe('buildConsolidatedCoverHtml', () => {
+  it('mostra o titulo, subtitulo e a imagem do motivo quando fornecida - nunca dado de filial/empresa', () => {
+    const html = buildConsolidatedCoverHtml(
+      'Relação de Comissões — Consolidado por Vendedor',
+      'Comissões para conferência e pagamento',
+      FAKE_MOTIF_DATA_URI
+    );
+    expect(html).toContain('Relação de Comissões — Consolidado por Vendedor');
+    expect(html).toContain('Comissões para conferência e pagamento');
+    expect(html).toContain(`<img class="doc-cover__motif" src="${FAKE_MOTIF_DATA_URI}"`);
+    expect(html).not.toContain('CNPJ');
+  });
+
+  it('omite a imagem quando nao ha data URI, mantendo o titulo', () => {
+    const html = buildConsolidatedCoverHtml('Título', 'Subtítulo');
+    expect(html).toContain('Título');
+    expect(html).not.toContain('doc-cover__motif');
+  });
+});
+
+describe('buildBranchDividerHtml - separador entre filiais', () => {
+  it('inclui a imagem do motivo quando fornecida', () => {
+    const html = buildBranchDividerHtml(FAKE_MOTIF_DATA_URI);
+    expect(html).toContain('branch-divider');
+    expect(html).toContain(`<img class="branch-divider__motif" src="${FAKE_MOTIF_DATA_URI}"`);
+  });
+
+  it('ainda produz o separador visual (linha) quando nao ha data URI', () => {
+    const html = buildBranchDividerHtml();
+    expect(html).toContain('branch-divider');
+    expect(html).not.toContain('branch-divider__motif');
+  });
+});
+
+describe('buildSignatureBlockHtml', () => {
+  it('sempre mostra a declaracao e as duas assinaturas, com ou sem motivo', () => {
+    const html = buildSignatureBlockHtml();
+    expect(html).toContain('Declaro que conferi');
+    expect(html).toContain('Assinatura do Vendedor');
+    expect(html).toContain('Assinatura do Responsável');
+    expect(html).not.toContain('doc-footer-motif');
+  });
+
+  it('adiciona o acento discreto do rodape antes da assinatura quando ha data URI', () => {
+    const html = buildSignatureBlockHtml(FAKE_MOTIF_DATA_URI);
+    expect(html).toContain('doc-footer-motif');
+    expect(html.indexOf('doc-footer-motif')).toBeLessThan(html.indexOf('signature__declaration'));
   });
 });

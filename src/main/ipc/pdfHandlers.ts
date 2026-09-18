@@ -7,6 +7,8 @@ import { getCompanyProfile } from '../companies/companyProfileRepository';
 import { getCompanyGroup } from '../companies/companyGroupRepository';
 import { getReportRoot } from '../storage/settingsRepository';
 import { renderHtmlToPdf } from '../pdf/renderPdf';
+import { embedImageAsDataUri } from '../pdf/embedImage';
+import { resolvePerforatedMetalMotifPath } from '../app/assets';
 import { openContainingFolder, openPdf, printPdf } from '../pdf/pdfActions';
 import { runBatchGeneration } from '../batches/batchLifecycle';
 import { log } from '../app/logger';
@@ -41,6 +43,7 @@ export function registerPdfHandlers(deps: PdfHandlerDeps): void {
 
       const lookupCompanyProfile = (branchCode: string) => getCompanyProfile(db, branchCode);
       const lookupCompanyGroup = (groupKey: string | null) => (groupKey ? getCompanyGroup(db, groupKey) : null);
+      const motifDataUri = embedImageAsDataUri(resolvePerforatedMetalMotifPath());
 
       const result = await runBatchGeneration(
         {
@@ -57,7 +60,8 @@ export function registerPdfHandlers(deps: PdfHandlerDeps): void {
           lookupCompanyProfile,
           lookupCompanyGroup,
           appVersion: app.getVersion(),
-          renderPdf: renderHtmlToPdf
+          renderPdf: renderHtmlToPdf,
+          motifDataUri
         }
       );
 

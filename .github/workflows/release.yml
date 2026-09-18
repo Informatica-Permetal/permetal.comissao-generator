@@ -1,0 +1,148 @@
+name: Release
+
+# Dispara SOMENTE quando uma tag no padrao vX.Y.Z e enviada (ex.: v1.3.0, v1.3.1, v2.0.0).
+# Push em branches (incluindo main) NUNCA dispara este workflow.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+# Permissao minima necessaria: criar a Release e enviar os arquivos anexos.
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  release:
+    name: Build, testar e publicar release
+    runs-on: windows-latest
+    steps:
+      # 1. Checkout exatamente no commit apontado pela tag que disparou o workflow.
+      - name: Checkout do codigo na tag
+        uses: actions/checkout@v4
+
+      # 2. Node.js na mesma major usada no desenvolvimento local (Node 24.x, requerido por node:sqlite).
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      # Valida ANTES de instalar dependencias ou compilar: a tag precisa corresponder
+      # exatamente a version do package.json. Se divergir, o job falha aqui e nenhuma
+      # Release e criada - nunca publicamos um instalador que nao corresponde a tag.
+      - name: Validar tag contra package.json
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+)$') {
+            Write-Error "Tag '$tag' nao segue o padrao estrito vX.Y.Z. Abortando."
+            exit 1
+          }
+          $tagVersion = $Matches[1]
+          $pkgVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          Write-Host "Tag: $tag (versao esperada: $tagVersion)"
+          Write-Host "package.json version: $pkgVersion"
+          if ($tagVersion -ne $pkgVersion) {
+            Write-Error "Divergencia entre tag ($tagVersion) e package.json ($pkgVersion). Corrija o package.json ou a tag antes de tentar novamente. Nenhuma release sera publicada."
+            exit 1
+          }
+          echo "APP_VERSION=$pkgVersion" >> $env:GITHUB_ENV
+
+      # 3. Instalacao reprodutivel a partir do package-lock.json (nunca "npm install" em CI).
+      - name: Instalar dependencias (npm ci)
+        run: npm ci
+
+      # 4. Lint
+      - name: Lint
+        run: npm run lint
+
+      # 5. Typecheck (main + renderer)
+      - name: Typecheck
+        run: npm run typecheck
+
+      # 6. Testes automatizados
+      - name: Testes
+        run: npm run test
+
+      # 7. Geracao do instalador oficial - o MESMO comando usado para gerar manualmente os
+      # instaladores anteriores (confirmado em package.json: "dist": "npm run build && electron-builder --win").
+      # Este comando ja inclui o build (electron-vite) internamente - nao rodamos "npm run build"
+      # como etapa separada, para nao compilar duas vezes.
+      - name: Gerar instalador Windows (npm run dist)
+        run: npm run dist
+
+      # 8. Localiza o .exe gerado por sufixo (evita depender de acentos/nome exato do produto
+      # hardcoded no workflow - o artifactName do electron-builder e "${productName}-Setup-${version}.${ext}").
+      - name: Localizar instalador gerado
+        shell: pwsh
+        run: |
+          $found = Get-ChildItem -Path release -Filter "*-Setup-$env:APP_VERSION.exe"
+          if ($found.Count -ne 1) {
+            Write-Error "Esperado exatamente 1 instalador terminando em '-Setup-$env:APP_VERSION.exe' em release/, encontrado $($found.Count)."
+            exit 1
+          }
+          $installer = $found[0]
+          Write-Host "Instalador: $($installer.Name) ($($installer.Length) bytes)"
+          echo "INSTALLER_PATH=$($installer.FullName)" >> $env:GITHUB_ENV
+          echo "INSTALLER_NAME=$($installer.Name)" >> $env:GITHUB_ENV
+
+      # 9. SHA256 do instalador, no formato padrao "<hash>  <nome-do-arquivo>" (compativel com
+      # "sha256sum -c" para quem quiser verificar a integridade do download).
+      - name: Gerar SHA256 do instalador
+        shell: pwsh
+        run: |
+          $hash = Get-FileHash -Algorithm SHA256 -Path "$env:INSTALLER_PATH"
+          $shaLine = "$($hash.Hash.ToLower())  $env:INSTALLER_NAME"
+          $shaPath = "$env:INSTALLER_PATH.sha256"
+          Set-Content -Path $shaPath -Value $shaLine -Encoding utf8NoBOM
+          Write-Host $shaLine
+          echo "SHA256_PATH=$shaPath" >> $env:GITHUB_ENV
+
+      # Notas da release: extrai a secao "## <versao>" do CHANGELOG.md. Se a secao nao for
+      # encontrada (changelog desatualizado, formato inesperado etc.), NAO inventa conteudo -
+      # usa uma nota minima e honesta apontando para o arquivo completo.
+      - name: Extrair notas de release do CHANGELOG.md
+        shell: pwsh
+        run: |
+          $version = $env:APP_VERSION
+          $lines = Get-Content CHANGELOG.md
+          $startIdx = -1
+          $endIdx = $lines.Count
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($startIdx -lt 0 -and $lines[$i] -match "^## $([regex]::Escape($version))(\s|$)") {
+              $startIdx = $i
+              continue
+            }
+            if ($startIdx -ge 0 -and $i -gt $startIdx -and $lines[$i] -match '^## ') {
+              $endIdx = $i
+              break
+            }
+          }
+          if ($startIdx -lt 0) {
+            Write-Warning "Secao '## $version' nao encontrada em CHANGELOG.md - usando nota minima."
+            $notes = "Formatador Comissao $version`n`nVer CHANGELOG.md no repositorio para o historico completo desta versao."
+          } else {
+            $section = $lines[$startIdx..($endIdx - 1)]
+            # Remove o separador "---" e linhas em branco finais que antecedem a proxima secao.
+            $lastIdx = $section.Count - 1
+            while ($lastIdx -ge 0 -and $section[$lastIdx].Trim() -in @('', '---')) { $lastIdx-- }
+            $notes = ($section[0..$lastIdx] -join "`n")
+          }
+          Set-Content -Path release-notes.md -Value $notes -Encoding utf8NoBOM
+
+      # 10-12. Cria a GitHub Release usando a propria tag, com titulo fixo e as notas extraidas,
+      # anexando SOMENTE o instalador e o seu SHA256 (nunca win-unpacked, builder-debug.yml,
+      # latest.yml ou .blockmap - ver docs/RELEASE_PROCESS.md para a justificativa).
+      - name: Criar GitHub Release
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            "$env:INSTALLER_PATH" `
+            "$env:SHA256_PATH" `
+            --title "Formatador Comissao ${{ github.ref_name }}" `
+            --notes-file release-notes.md

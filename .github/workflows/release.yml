@@ -31,9 +31,11 @@ jobs:
           cache: 'npm'
 
       # Valida ANTES de instalar dependencias ou compilar: a tag precisa corresponder
-      # exatamente a version do package.json. Se divergir, o job falha aqui e nenhuma
-      # Release e criada - nunca publicamos um instalador que nao corresponde a tag.
-      - name: Validar tag contra package.json
+      # exatamente a version do package.json E do package-lock.json (tanto o campo raiz
+      # quanto packages[""].version) - as duas ja divergiram uma da outra no passado
+      # (bump manual do package.json sem rodar "npm install"/"npm version"). Se qualquer
+      # um divergir, o job falha aqui e nenhuma Release e criada.
+      - name: Validar tag contra package.json e package-lock.json
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
@@ -42,11 +44,24 @@ jobs:
             exit 1
           }
           $tagVersion = $Matches[1]
+
           $pkgVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $lock = Get-Content package-lock.json -Raw | ConvertFrom-Json -AsHashtable
+          $lockVersion = $lock["version"]
+          $lockRootVersion = $lock["packages"][""]["version"]
+
           Write-Host "Tag: $tag (versao esperada: $tagVersion)"
           Write-Host "package.json version: $pkgVersion"
-          if ($tagVersion -ne $pkgVersion) {
-            Write-Error "Divergencia entre tag ($tagVersion) e package.json ($pkgVersion). Corrija o package.json ou a tag antes de tentar novamente. Nenhuma release sera publicada."
+          Write-Host "package-lock.json version: $lockVersion"
+          Write-Host "package-lock.json packages[''].version: $lockRootVersion"
+
+          $mismatches = @()
+          if ($tagVersion -ne $pkgVersion) { $mismatches += "package.json ($pkgVersion)" }
+          if ($tagVersion -ne $lockVersion) { $mismatches += "package-lock.json version ($lockVersion)" }
+          if ($tagVersion -ne $lockRootVersion) { $mismatches += "package-lock.json packages[''].version ($lockRootVersion)" }
+
+          if ($mismatches.Count -gt 0) {
+            Write-Error "Divergencia de versao: tag pede '$tagVersion' mas diverge de: $($mismatches -join '; '). Corrija antes de tentar novamente. Nenhuma release sera publicada."
             exit 1
           }
           echo "APP_VERSION=$pkgVersion" >> $env:GITHUB_ENV

@@ -15,8 +15,9 @@ Release. O único instalador oficial é o artefato produzido pelo workflow, a pa
 Ao receber um push de uma tag `vX.Y.Z`, o workflow, rodando em `windows-latest`:
 
 1. Faz checkout exatamente no commit apontado pela tag.
-2. Valida que a tag corresponde exatamente à `version` do `package.json` daquele commit -
-   se divergir, o workflow falha e nenhuma release é criada.
+2. Valida que a tag corresponde exatamente à `version` do `package.json` **e** à `version`
+   e à `packages[""].version` do `package-lock.json` daquele commit - se qualquer um
+   divergir, o workflow falha e nenhuma release é criada.
 3. Instala as dependências de forma reprodutível (`npm ci`).
 4. Roda lint, typecheck e testes.
 5. Gera o instalador oficial com `npm run dist` - este comando já inclui o build
@@ -36,7 +37,23 @@ lançada.
 1. Termine e valide o desenvolvimento da versão normalmente (lint, typecheck, testes e build
    locais, testes manuais na UI quando aplicável).
 
-2. Atualize o campo `"version"` em `package.json` para a nova versão (ex.: `"1.3.0"`).
+2. Atualize a versão usando o `npm`, nunca editando `package.json` manualmente:
+
+   ```powershell
+   npm version 1.3.0 --no-git-tag-version
+   ```
+
+   Isso sincroniza `package.json` e `package-lock.json` (o campo raiz `version` e
+   `packages[""].version`) num único passo, sem criar um commit nem uma tag Git
+   automaticamente (`--no-git-tag-version`). Confira o resultado com:
+
+   ```powershell
+   git diff -- package.json package-lock.json
+   ```
+
+   O workflow valida os três campos (`package.json`, `package-lock.json.version` e
+   `package-lock.json.packages[""].version`) contra a tag antes de instalar qualquer
+   dependência - uma divergência entre eles bloqueia a Release automaticamente.
 
 3. Atualize o `CHANGELOG.md`, adicionando uma nova seção no topo no formato:
 

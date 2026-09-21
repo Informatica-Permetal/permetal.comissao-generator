@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { join } from 'node:path';
 import { APP_ID, APP_NAME } from '@shared/constants/app';
+import { resolveExecutionProfile, resolveProfileAppName } from './app/executionProfile';
 import { resolveAppDataPaths } from './app/paths';
 import { resolveAppIconPath, resolveBrandLogosDir } from './app/assets';
 import { writeReportRootManifestIfMissing } from './app/dataOwnership';
@@ -23,9 +24,17 @@ import {
   resolveLegacyUserDataPath
 } from './migration/migrateLegacyNaming';
 
-const paths = resolveAppDataPaths();
+// Resolved and applied before anything else touches the filesystem, a database, a
+// session, or a watcher - Chromium itself must not initialize its own caches/session
+// storage before `app.setPath` redirects them, or DEV/HOMOLOGATION would silently
+// share PRODUCTION's userData (this is exactly what caused real
+// "Unable to move the cache"/"Gpu Cache Creation failed" errors before this existed).
+const executionProfile = resolveExecutionProfile(app.isPackaged);
+const profileAppName = resolveProfileAppName(APP_NAME, executionProfile);
+const paths = resolveAppDataPaths(executionProfile);
 app.setPath('userData', paths.userDataPath);
 app.setPath('logs', paths.logDir);
+app.setPath('sessionData', paths.sessionDataPath);
 app.setName(APP_NAME);
 
 /** `null` on every normal launch - only set when the uninstaller invokes this same executable in its headless data-cleanup mode (see `uninstallCli.ts`). */
@@ -47,7 +56,7 @@ function createMainWindow(): void {
     width: 1200,
     height: 800,
     show: false,
-    title: APP_NAME,
+    title: profileAppName,
     autoHideMenuBar: true,
     icon: resolveAppIconPath(),
     webPreferences: {
@@ -88,17 +97,41 @@ void app.whenReady().then(() => {
     return;
   }
 
-  migrateLegacyAppData(paths, (message, meta) => console.warn(message, meta));
+  // The legacy (pre-accent) folder-name migration only ever makes sense for PRODUCTION:
+  // it looks for a sibling `%LOCALAPPDATA%\Formatador Comissao` folder next to whatever
+  // userData currently resolves to, which for DEV/HOMOLOGATION would incorrectly point at
+  // PRODUCTION's own legacy leftovers (their sibling folder is always %LOCALAPPDATA%,
+  // regardless of profile). DEV/HOMOLOGATION profiles are always brand new and never had
+  // a legacy state to migrate from.
+  if (executionProfile === 'PRODUCTION') {
+    migrateLegacyAppData(paths, (message, meta) => console.warn(message, meta));
+  }
 
   initLogger(paths.logDir);
   log('info', 'app ready', { appDataPath: paths.userDataPath, databasePath: paths.databasePath });
 
   const db = openDatabase(paths.databasePath);
-  remapStoredLogoPaths(db, resolveLegacyUserDataPath(paths), paths.userDataPath);
 
-  const reportRootMigration = migrateLegacyReportRootAndPaths(db, (message, meta) => log('warn', message, meta));
-  if (reportRootMigration.didMigrateRootFolder || reportRootMigration.didMigrateModeFolders) {
-    log('info', 'legacy report root naming migrated', { ...reportRootMigration });
+  if (executionProfile === 'PRODUCTION') {
+    remapStoredLogoPaths(db, resolveLegacyUserDataPath(paths), paths.userDataPath);
+
+    const reportRootMigration = migrateLegacyReportRootAndPaths(db, (message, meta) => log('warn', message, meta));
+    if (reportRootMigration.didMigrateRootFolder || reportRootMigration.didMigrateModeFolders) {
+      log('info', 'legacy report root naming migrated', { ...reportRootMigration });
+    }
+  } else {
+    // Not sensitive - reportRoot is just a folder path the user themselves chose (or null
+    // pre-first-run), never business data. PRODUCTION's own logging is deliberately left
+    // unchanged above - this extra diagnostic line only fires for DEV/HOMOLOGATION, so a
+    // developer can tell at a glance which profile and paths a given run used.
+    log('info', 'execution profile diagnostics', {
+      executionProfile,
+      userDataPath: paths.userDataPath,
+      databasePath: paths.databasePath,
+      sessionDataPath: paths.sessionDataPath,
+      logDir: paths.logDir,
+      reportRoot: getReportRoot(db)
+    });
   }
 
   seedDefaultCompanyProfiles(db, resolveBrandLogosDir(), join(paths.userDataPath, 'logos'));
@@ -106,6 +139,7 @@ void app.whenReady().then(() => {
   registerSettingsHandlers({
     db,
     paths,
+    executionProfile,
     getWindow: () => mainWindow,
     onFirstRunCompleted: (reportRoot) => startImportWatchers(reportRoot, () => mainWindow)
   });

@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { IPC_CHANNELS } from '@shared/contracts/ipc';
 import { APP_ID } from '@shared/constants/app';
 import type { AppState, CompleteFirstRunResult, FolderPermissionResult } from '@shared/types/settings';
+import type { ExecutionProfile } from '../app/executionProfile';
 import { resolveSuggestedReportRoot, type AppDataPaths } from '../app/paths';
 import { createFolderTree, testFolderPermissions } from '../app/reportRoot';
 import { writeReportRootManifestIfMissing } from '../app/dataOwnership';
@@ -13,17 +14,18 @@ import { getReportRoot, isFirstRunComplete, persistFirstRunCompletion } from '..
 interface SettingsHandlerDeps {
   db: DatabaseSync;
   paths: AppDataPaths;
+  executionProfile: ExecutionProfile;
   getWindow: () => BrowserWindow | null;
   onFirstRunCompleted?: (reportRoot: string) => void;
 }
 
 export function registerSettingsHandlers(deps: SettingsHandlerDeps): void {
-  const { db, paths, getWindow, onFirstRunCompleted } = deps;
+  const { db, paths, executionProfile, getWindow, onFirstRunCompleted } = deps;
 
   ipcMain.handle(IPC_CHANNELS.settingsGetState, (): AppState => ({
     isFirstRunComplete: isFirstRunComplete(db),
     reportRoot: getReportRoot(db),
-    suggestedReportRoot: resolveSuggestedReportRoot(app.getPath('documents')),
+    suggestedReportRoot: resolveSuggestedReportRoot(app.getPath('documents'), executionProfile),
     appDataPath: paths.userDataPath,
     logPath: paths.logDir,
     databasePath: paths.databasePath,

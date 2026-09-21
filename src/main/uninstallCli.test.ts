@@ -63,7 +63,11 @@ describe('runUninstallCli', () => {
     const outPath = join(baseDir, 'check-result.txt');
     runUninstallCli(
       { mode: 'check', outPath },
-      { db, paths: { userDataPath: join(baseDir, 'AppData'), logDir: '', databasePath: dbPath }, special: fakeSpecial() }
+      {
+        db,
+        paths: { userDataPath: join(baseDir, 'AppData'), logDir: '', databasePath: dbPath, sessionDataPath: join(baseDir, 'AppData') },
+        special: fakeSpecial()
+      }
     );
     db.close();
 
@@ -84,7 +88,7 @@ describe('runUninstallCli', () => {
     const outPath = join(baseDir, 'delete-result.txt');
     runUninstallCli(
       { mode: 'delete', outPath },
-      { db, paths: { userDataPath: appDataPath, logDir: '', databasePath: dbPath }, special: fakeSpecial() }
+      { db, paths: { userDataPath: appDataPath, logDir: '', databasePath: dbPath, sessionDataPath: appDataPath }, special: fakeSpecial() }
     );
     // runUninstallCli itself closes the db before deleting (the file lives inside appDataPath).
 
@@ -104,7 +108,7 @@ describe('runUninstallCli', () => {
     const outPath = join(baseDir, 'delete-result.txt');
     runUninstallCli(
       { mode: 'delete', outPath },
-      { db, paths: { userDataPath: appDataPath, logDir: '', databasePath: dbPath }, special: fakeSpecial() }
+      { db, paths: { userDataPath: appDataPath, logDir: '', databasePath: dbPath, sessionDataPath: appDataPath }, special: fakeSpecial() }
     );
 
     expect(existsSync(appDataPath)).toBe(false);

@@ -33,7 +33,8 @@ describe('migrateLegacyAppData', () => {
     return {
       userDataPath,
       logDir: join(userDataPath, 'logs'),
-      databasePath: join(userDataPath, 'Formatador Comissão.db')
+      databasePath: join(userDataPath, 'Formatador Comissão.db'),
+      sessionDataPath: userDataPath
     };
   }
 

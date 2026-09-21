@@ -10,6 +10,76 @@ publicação.** Rodar `npm run dist` localmente continua funcionando normalmente
 depuração, mas o `.exe` resultante de uma execução local não deve ser anexado a uma GitHub
 Release. O único instalador oficial é o artefato produzido pelo workflow, a partir da tag.
 
+## Desenvolvimento e homologação local
+
+O app resolve um **perfil de execução** (`ExecutionProfile`, em
+`src/main/app/executionProfile.ts`) antes de qualquer serviço (banco, logs, sessão do
+Chromium, watchers) inicializar. Cada perfil usa seus **próprios** dados - nunca
+compartilha `userData`, banco SQLite, sessão/cache do Chromium ou pasta de relatórios com
+outro perfil.
+
+### Desenvolvimento
+
+```powershell
+npm run dev
+```
+
+- Perfil: **DEV** (sempre, automaticamente - `npm run dev` roda desempacotado, e isso por
+  si só já determina DEV).
+- Dados: `%LOCALAPPDATA%\Formatador Comissão Dev`
+- Relatórios padrão sugeridos: `Documentos\Formatador Comissão Dev`
+- Uso: desenvolvimento iterativo (HMR no renderer via Vite; mudanças em `src/main`/`src/preload`
+  reiniciam o processo Electron).
+
+### Homologação empacotada
+
+```powershell
+npm run pack
+npm run homolog
+```
+
+(ou o alias `npm run pack:run`, que executa exatamente o mesmo launcher que `homolog`)
+
+- `npm run pack` gera `release\win-unpacked\Formatador Comissão.exe` - o app real
+  empacotado, sem NSIS/Setup, sem Release, sem tag.
+- `npm run homolog`/`npm run pack:run` executam esse `.exe` através de
+  `scripts/run-homologation.mjs`, que define explicitamente `FC_EXECUTION_PROFILE=HOMOLOGATION`
+  no processo filho antes de iniciá-lo.
+- Perfil: **HOMOLOGATION**
+- Dados: `%LOCALAPPDATA%\Formatador Comissão Homologação`
+- Relatórios padrão sugeridos: `Documentos\Formatador Comissão Homologação`
+- Uso: testar o build empacotado, próximo da produção, sem gerar um Setup.
+
+**NUNCA execute `release\win-unpacked\Formatador Comissão.exe` diretamente (duplo-clique ou
+`.\Formatador Comissão.exe` no terminal) para homologar.** Um app empacotado iniciado sem o
+launcher/flag de homologação é tratado como **PRODUCTION** - ele usaria os dados reais de
+produção. Para homologar, sempre use `npm run homolog` ou `npm run pack:run`.
+
+### Produção
+
+- Como se inicia: o aplicativo instalado normalmente (via Setup NSIS), do jeito que sempre
+  funcionou.
+- Perfil: **PRODUCTION** (padrão de qualquer build empacotado sem
+  `FC_EXECUTION_PROFILE=HOMOLOGATION` explícito).
+- Dados existentes, preservados exatamente como sempre foram: `%LOCALAPPDATA%\Formatador Comissão`
+- Relatórios: `Documentos\Formatador Comissão` (ou a pasta que o usuário tiver escolhido)
+
+### O que DEV/HOMOLOGATION ainda não substituem
+
+Rodar em DEV ou HOMOLOGATION não substitui testar com o Setup NSIS real:
+
+- instalação per-user;
+- criação de atalhos (Desktop/Menu Iniciar);
+- ausência de prompt de UAC;
+- upgrade entre versões;
+- desinstalação;
+- preservação de dados por padrão ao desinstalar;
+- opção de apagar dados no desinstalador;
+- reinstalação.
+
+Esses cenários continuam exigindo o instalador gerado por `npm run dist` (só para teste local -
+nunca anexado a uma Release, conforme a seção anterior).
+
 ## Visão geral do que o workflow faz
 
 Ao receber um push de uma tag `vX.Y.Z`, o workflow, rodando em `windows-latest`:

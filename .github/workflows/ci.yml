@@ -1,0 +1,54 @@
+name: CI
+
+# Roda nos mesmos pushes a main e nas pull requests contra main - nunca em tags (isso e
+# exclusividade de release.yml). O objetivo e simples: uma alteracao so esta pronta para
+# ganhar uma tag quando este workflow estiver verde em main - a v1.2.1 descobriu um problema
+# de runner (bug do libuv/Node em runners Windows mais antigos) somente DEPOIS de criar a
+# tag, porque o unico gate real no GitHub acontecia no push da tag. Este workflow existe para
+# que isso nunca mais aconteca.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Somente leitura - este workflow nunca publica nada (nenhuma Release, nenhum artefato,
+# nenhuma tag).
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Lint, typecheck, testes e build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Mesma fonte de versao do Node que release.yml (.node-version na raiz do repo), para os
+      # dois workflows nunca divergirem.
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+
+      - name: Mostrar versoes do runtime
+        run: |
+          node --version
+          npm --version
+
+      - name: Instalar dependencias (npm ci)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Testes
+        run: npm run test
+
+      - name: Build
+        run: npm run build

@@ -10,6 +10,35 @@ publicação.** Rodar `npm run dist` localmente continua funcionando normalmente
 depuração, mas o `.exe` resultante de uma execução local não deve ser anexado a uma GitHub
 Release. O único instalador oficial é o artefato produzido pelo workflow, a partir da tag.
 
+## Node.js homologado
+
+A versão exata do Node usada em CI e Release fica em `.node-version`, na raiz do repositório
+- hoje `24.21.0`. `.github/workflows/ci.yml` e `.github/workflows/release.yml` leem essa
+**mesma** fonte (`actions/setup-node` com `node-version-file: '.node-version'`), então os dois
+workflows nunca podem divergir de versão do Node entre si.
+
+Fixar uma versão **exata** (não só a major `24`) importa de verdade: a primeira tentativa de
+publicar a v1.2.1 falhou porque o runner do GitHub Actions usava Node 24.20.0, que tem um bug
+conhecido do libuv no observador de arquivos do Windows
+([nodejs/node#63638](https://github.com/nodejs/node/issues/63638), corrigido em
+[nodejs/node#65118](https://github.com/nodejs/node/pull/65118)) - a suíte de testes deste
+projeto usa um observador de arquivos real (`chokidar`) e derrubou o processo de teste com
+`Assertion failed: !_wcsnicmp(filename, dir, dirlen)`. A versão 24.21.0 já inclui a correção.
+Ao atualizar essa versão no futuro, atualize `.node-version` uma vez só - os dois workflows
+acompanham automaticamente.
+
+## CI contínuo (antes de criar qualquer tag)
+
+`.github/workflows/ci.yml` roda em todo push para `main` e em toda pull request contra `main`
+- **nunca** em tags (isso é exclusividade do `release.yml`) e **nunca** publica nada (sem
+Release, sem artefato, sem tag). Pipeline: checkout → Node (mesma versão de `release.yml`) →
+log de `node`/`npm --version` → `npm ci` → lint → typecheck → testes → `npm run build`.
+
+**Regra dura**: uma alteração só está pronta para ganhar uma tag quando este workflow estiver
+**verde** no commit de `main` que será taggeado. A tag/Release descobrem problemas de
+runner tarde demais (só no push da tag); o CI contínuo existe para pegar isso cedo, em todo
+push normal, sem nunca tentar publicar nada.
+
 ## Desenvolvimento e homologação local
 
 O app resolve um **perfil de execução** (`ExecutionProfile`, em
@@ -158,6 +187,12 @@ lançada.
    git commit -m "chore: prepara release 1.3.0"
    git push origin main
    ```
+
+5.1. **Aguarde o workflow `CI` ficar verde** para este exato commit em `main` (aba
+   **Actions** do GitHub, ou `gh run watch` apontando para o run mais recente de `main`).
+   Só crie a tag depois disso - é exatamente essa checagem que teria detectado, antes de
+   qualquer tentativa de Release, o problema de runner que a primeira tentativa da v1.2.1
+   encontrou.
 
 6. Crie a tag anotada correspondente e envie-a - **é o push da tag que dispara o workflow**:
 

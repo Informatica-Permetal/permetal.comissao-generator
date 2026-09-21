@@ -11,9 +11,6 @@ on:
 permissions:
   contents: write
 
-env:
-  NODE_VERSION: '24'
-
 jobs:
   release:
     name: Build, testar e publicar release
@@ -23,12 +20,24 @@ jobs:
       - name: Checkout do codigo na tag
         uses: actions/checkout@v4
 
-      # 2. Node.js na mesma major usada no desenvolvimento local (Node 24.x, requerido por node:sqlite).
+      # 2. Versao exata do Node homologada para este projeto - lida de .node-version (raiz do
+      # repo), a MESMA fonte usada por ci.yml, para nunca divergir entre os dois workflows.
+      # Fixar uma versao exata (nao so a major "24") importa de verdade aqui: a v1.2.1 falhou
+      # num runner com Node 24.20.0 por causa de um bug conhecido do libuv no watcher de
+      # arquivos do Windows (nodejs/node#63638, corrigido em nodejs/node#65118) - 24.21.0 ja
+      # inclui a correcao.
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: '.node-version'
           cache: 'npm'
+
+      # Log simples do runtime real usado - qualquer falha futura mostra explicitamente qual
+      # Node/npm rodou, sem precisar inferir do arquivo de configuracao.
+      - name: Mostrar versoes do runtime
+        run: |
+          node --version
+          npm --version
 
       # Valida ANTES de instalar dependencias ou compilar: a tag precisa corresponder
       # exatamente a version do package.json E do package-lock.json (tanto o campo raiz
@@ -66,30 +75,30 @@ jobs:
           }
           echo "APP_VERSION=$pkgVersion" >> $env:GITHUB_ENV
 
-      # 3. Instalacao reprodutivel a partir do package-lock.json (nunca "npm install" em CI).
+      # 4. Instalacao reprodutivel a partir do package-lock.json (nunca "npm install" em CI).
       - name: Instalar dependencias (npm ci)
         run: npm ci
 
-      # 4. Lint
+      # 5. Lint
       - name: Lint
         run: npm run lint
 
-      # 5. Typecheck (main + renderer)
+      # 6. Typecheck (main + renderer)
       - name: Typecheck
         run: npm run typecheck
 
-      # 6. Testes automatizados
+      # 7. Testes automatizados
       - name: Testes
         run: npm run test
 
-      # 7. Geracao do instalador oficial - o MESMO comando usado para gerar manualmente os
+      # 8. Geracao do instalador oficial - o MESMO comando usado para gerar manualmente os
       # instaladores anteriores (confirmado em package.json: "dist": "npm run build && electron-builder --win").
       # Este comando ja inclui o build (electron-vite) internamente - nao rodamos "npm run build"
       # como etapa separada, para nao compilar duas vezes.
       - name: Gerar instalador Windows (npm run dist)
         run: npm run dist
 
-      # 8. Localiza o .exe gerado por sufixo (evita depender de acentos/nome exato do produto
+      # 9. Localiza o .exe gerado por sufixo (evita depender de acentos/nome exato do produto
       # hardcoded no workflow - o artifactName do electron-builder e "${productName}-Setup-${version}.${ext}").
       - name: Localizar instalador gerado
         shell: pwsh
@@ -104,7 +113,7 @@ jobs:
           echo "INSTALLER_PATH=$($installer.FullName)" >> $env:GITHUB_ENV
           echo "INSTALLER_NAME=$($installer.Name)" >> $env:GITHUB_ENV
 
-      # 9. SHA256 do instalador, no formato padrao "<hash>  <nome-do-arquivo>" (compativel com
+      # 10. SHA256 do instalador, no formato padrao "<hash>  <nome-do-arquivo>" (compativel com
       # "sha256sum -c" para quem quiser verificar a integridade do download).
       - name: Gerar SHA256 do instalador
         shell: pwsh
@@ -148,7 +157,7 @@ jobs:
           }
           Set-Content -Path release-notes.md -Value $notes -Encoding utf8NoBOM
 
-      # 10-12. Cria a GitHub Release usando a propria tag, com titulo fixo e as notas extraidas,
+      # 11-13. Cria a GitHub Release usando a propria tag, com titulo fixo e as notas extraidas,
       # anexando SOMENTE o instalador e o seu SHA256 (nunca win-unpacked, builder-debug.yml,
       # latest.yml ou .blockmap - ver docs/RELEASE_PROCESS.md para a justificativa).
       - name: Criar GitHub Release

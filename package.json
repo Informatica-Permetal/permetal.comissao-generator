@@ -1,7 +1,7 @@
 {
   "name": "formatador-comissao",
   "productName": "Formatador Comissão",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "description": "Formatador Comissão - formata em PDF as exportações de comissão do TOTVS Protheus Smart View",
   "author": "Permetal",

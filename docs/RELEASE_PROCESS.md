@@ -27,6 +27,21 @@ projeto usa um observador de arquivos real (`chokidar`) e derrubou o processo de
 Ao atualizar essa versão no futuro, atualize `.node-version` uma vez só - os dois workflows
 acompanham automaticamente.
 
+## Build vs. publicação: quem faz o quê
+
+`npm run dist` (`electron-vite build && electron-builder --win --publish never`) só builda,
+empacota e assina o Setup NSIS - o `--publish never` desliga explicitamente o comportamento
+próprio do `electron-builder` de tentar publicar sozinho quando detecta uma tag Git num
+ambiente de CI ("Implicit publishing triggered by git tag", removido por padrão a partir do
+`electron-builder` v27). Sem isso, a v1.2.2 falhou porque o `electron-builder` tentou criar a
+Release por conta própria e não achou um `GH_TOKEN` - exatamente o token que nunca demos a ele
+de propósito.
+
+A criação da GitHub Release continua sendo responsabilidade **exclusiva** do passo `gh release
+create` do workflow, autenticado com o `GITHUB_TOKEN` padrão do próprio Actions
+(`secrets.GITHUB_TOKEN`, já com `permissions: contents: write` no topo do workflow) - nunca um
+PAT pessoal, nunca um secret novo.
+
 ## CI contínuo (antes de criar qualquer tag)
 
 `.github/workflows/ci.yml` roda em todo push para `main` e em toda pull request contra `main`
@@ -237,3 +252,12 @@ workflow. As tags `v1.0.0`, `v1.1.0` e `v1.2.0` e as respectivas GitHub Releases
 o instalador `.exe` e o `.sha256` correspondente) foram criadas e publicadas manualmente depois
 - **não foram criadas nem passaram por este workflow**, que só existe a partir da versão
 seguinte. Nenhuma delas será regenerada ou automatizada retroativamente por este processo.
+
+## Tentativas abortadas (1.2.1, 1.2.2)
+
+As tags `v1.2.1` e `v1.2.2` existem no repositório, mas **nenhuma das duas tem GitHub Release**
+- os respectivos runs do workflow `Release` falharam antes de chegar à criação da Release
+(v1.2.1: Node do runner com um bug do libuv; v1.2.2: publicação implícita do
+`electron-builder`, ambos corrigidos neste próprio documento/workflow). Por decisão explícita,
+essas tags não foram movidas, apagadas nem recriadas - ficam como registro histórico das
+tentativas. A próxima publicação oficial é a `v1.2.3`.

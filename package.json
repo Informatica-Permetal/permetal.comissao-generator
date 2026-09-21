@@ -15,10 +15,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "pack": "npm run build && electron-builder --win --dir",
+    "pack": "npm run build && electron-builder --win --dir --publish never",
     "homolog": "node scripts/run-homologation.mjs",
     "pack:run": "npm run homolog",
-    "dist": "npm run build && electron-builder --win"
+    "dist": "npm run build && electron-builder --win --publish never"
   },
   "dependencies": {
     "chokidar": "^5.0.0",

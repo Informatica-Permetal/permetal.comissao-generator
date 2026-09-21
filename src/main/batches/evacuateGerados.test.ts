@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { openDatabase } from '../storage/database';
+import { openTestDatabase } from '../storage/testDatabase';
 import { insertBatch } from '../storage/batchRepository';
 import { insertDocument, listDocumentsByBatch } from '../storage/documentRepository';
 import { createFixtureDir, removeFixtureDir } from '../reports/testSupport/xlsxFixtures';
@@ -14,7 +14,7 @@ let db: DatabaseSync;
 
 beforeEach(() => {
   reportRoot = createFixtureDir('fc-evacuate-');
-  db = openDatabase(join(reportRoot, 'app.db'));
+  db = openTestDatabase(join(reportRoot, 'app.db'));
   insertBatch(db, {
     id: 'batch-x',
     mode: 'Previsao',

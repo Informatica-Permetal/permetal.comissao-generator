@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DatabaseSync } from 'node:sqlite';
-import { openDatabase } from '../storage/database';
+import { openTestDatabase } from '../storage/testDatabase';
 import { upsertCompanyGroup } from './companyGroupRepository';
 import {
   deleteCompanyProfileRecord,
@@ -20,7 +20,7 @@ let db: DatabaseSync;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'fc-companies-'));
-  db = openDatabase(join(dir, 'test.db'));
+  db = openTestDatabase(join(dir, 'test.db'));
 });
 
 afterEach(() => {

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { openDatabase } from './database';
+import { openTestDatabase } from './testDatabase';
 import { getReportRoot, isFirstRunComplete, persistFirstRunCompletion } from './settingsRepository';
 
 describe('settings persistence across a simulated restart', () => {
@@ -19,7 +19,7 @@ describe('settings persistence across a simulated restart', () => {
   });
 
   it('is not first-run-complete on a brand new database', () => {
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     expect(isFirstRunComplete(db)).toBe(false);
     expect(getReportRoot(db)).toBeNull();
     db.close();
@@ -28,12 +28,12 @@ describe('settings persistence across a simulated restart', () => {
   it('keeps the report root and first-run status after the app is closed and reopened', () => {
     const reportRoot = join(baseDir, 'Documentos com Espaco', 'Formatador Comissao');
 
-    const firstSession = openDatabase(dbPath);
+    const firstSession = openTestDatabase(dbPath);
     persistFirstRunCompletion(firstSession, reportRoot);
     firstSession.close();
 
     // simulate the app being restarted: open a brand new DatabaseSync over the same file
-    const secondSession = openDatabase(dbPath);
+    const secondSession = openTestDatabase(dbPath);
     expect(isFirstRunComplete(secondSession)).toBe(true);
     expect(getReportRoot(secondSession)).toBe(reportRoot);
     secondSession.close();
@@ -59,10 +59,10 @@ describe('report root isolation across execution profiles', () => {
     const homologReportRoot = join(baseDir, 'Documentos', 'Formatador Comissão Homologação');
     const productionStyleReportRoot = join(baseDir, 'Documentos', 'Formatador Comissão');
 
-    const devDb = openDatabase(devDbPath);
+    const devDb = openTestDatabase(devDbPath);
     persistFirstRunCompletion(devDb, devReportRoot);
 
-    const homologDb = openDatabase(homologDbPath);
+    const homologDb = openTestDatabase(homologDbPath);
     persistFirstRunCompletion(homologDb, homologReportRoot);
 
     expect(getReportRoot(devDb)).toBe(devReportRoot);
@@ -79,13 +79,13 @@ describe('report root isolation across execution profiles', () => {
 
   it("a fresh profile database never reflects another profile's already-completed first run", () => {
     const homologDbPath = join(baseDir, 'Formatador Comissão Homologação', 'Formatador Comissão Homologação.db');
-    const homologDb = openDatabase(homologDbPath);
+    const homologDb = openTestDatabase(homologDbPath);
     persistFirstRunCompletion(homologDb, join(baseDir, 'Documentos', 'Formatador Comissão Homologação'));
     homologDb.close();
 
     // A different profile's database file was never touched by the write above - it must start from scratch.
     const devDbPath = join(baseDir, 'Formatador Comissão Dev', 'Formatador Comissão Dev.db');
-    const devDb = openDatabase(devDbPath);
+    const devDb = openTestDatabase(devDbPath);
     expect(isFirstRunComplete(devDb)).toBe(false);
     expect(getReportRoot(devDb)).toBeNull();
     devDb.close();

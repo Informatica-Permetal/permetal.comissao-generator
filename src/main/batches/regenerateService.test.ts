@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompanyProfile } from '@shared/types/companyProfile';
-import { openDatabase } from '../storage/database';
+import { openTestDatabase } from '../storage/testDatabase';
 import { getBatchById } from '../storage/batchRepository';
 import { listDocumentsByBatch } from '../storage/documentRepository';
 import { resolveGeradosDir } from '../pdf/outputPath';
@@ -72,7 +72,7 @@ let lookupCompanyProfile: (code: string) => CompanyProfile | null;
 beforeEach(() => {
   reportRoot = createFixtureDir('fc-regen-root-');
   sourceDir = createFixtureDir('fc-regen-source-');
-  db = openDatabase(join(reportRoot, 'app.db'));
+  db = openTestDatabase(join(reportRoot, 'app.db'));
   lookupCompanyProfile = (code) => (code === '0103' ? COMPANY_0103 : null);
 });
 

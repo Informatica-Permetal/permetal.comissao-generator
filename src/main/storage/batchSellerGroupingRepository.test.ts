@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DatabaseSync } from 'node:sqlite';
-import { openDatabase } from './database';
+import { openTestDatabase } from './testDatabase';
 import { insertBatch, deleteBatchRecord } from './batchRepository';
 import { getBatchSellerGroupingModes, upsertBatchSellerGroupingModes } from './batchSellerGroupingRepository';
 
@@ -12,7 +12,7 @@ let db: DatabaseSync;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'fc-batch-grouping-'));
-  db = openDatabase(join(dir, 'test.db'));
+  db = openTestDatabase(join(dir, 'test.db'));
   insertBatch(db, {
     id: 'batch-1',
     mode: 'Relacao',

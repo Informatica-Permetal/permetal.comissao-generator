@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { openDatabase } from '../storage/database';
+import { openTestDatabase } from '../storage/testDatabase';
 import { persistFirstRunCompletion, getReportRoot } from '../storage/settingsRepository';
 import { insertBatch, getBatchById } from '../storage/batchRepository';
 import { insertDocument, getDocumentById } from '../storage/documentRepository';
@@ -94,7 +94,7 @@ describe('migrateLegacyAppData', () => {
 
 describe('remapStoredLogoPaths', () => {
   beforeEach(() => {
-    db = openDatabase(join(root, 'app.db'));
+    db = openTestDatabase(join(root, 'app.db'));
     dbOpened = true;
   });
 
@@ -118,7 +118,7 @@ describe('remapStoredLogoPaths', () => {
 
 describe('migrateLegacyReportRootAndPaths', () => {
   beforeEach(() => {
-    db = openDatabase(join(root, 'app.db'));
+    db = openTestDatabase(join(root, 'app.db'));
     dbOpened = true;
   });
 

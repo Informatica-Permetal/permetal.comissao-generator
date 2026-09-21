@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { writeReportRootManifestIfMissing } from './app/dataOwnership';
-import { openDatabase } from './storage/database';
+import { openTestDatabase } from './storage/testDatabase';
 import { persistFirstRunCompletion } from './storage/settingsRepository';
 import { parseUninstallCliArgs, runUninstallCli } from './uninstallCli';
 
@@ -54,7 +54,7 @@ describe('runUninstallCli', () => {
 
   it('modo "check": escreve os caminhos reais sem apagar nada', () => {
     const dbPath = join(baseDir, 'AppData', 'Formatador Comissão.db');
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     const reportRoot = join(baseDir, 'Formatador Comissão');
     mkdirSync(join(reportRoot, 'Previsão'), { recursive: true });
     writeReportRootManifestIfMissing(reportRoot, APP_ID, ['Previsão', 'Relação']);
@@ -79,7 +79,7 @@ describe('runUninstallCli', () => {
   it('modo "delete": realmente remove os dados do report root e do appData', () => {
     const appDataPath = join(baseDir, 'AppData');
     const dbPath = join(appDataPath, 'Formatador Comissão.db');
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     const reportRoot = join(baseDir, 'Formatador Comissão');
     mkdirSync(join(reportRoot, 'Previsão'), { recursive: true });
     writeReportRootManifestIfMissing(reportRoot, APP_ID, ['Previsão', 'Relação']);
@@ -103,7 +103,7 @@ describe('runUninstallCli', () => {
   it('modo "delete" sem report root configurado: apaga so o appData, sem erro', () => {
     const appDataPath = join(baseDir, 'AppData');
     const dbPath = join(appDataPath, 'Formatador Comissão.db');
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
 
     const outPath = join(baseDir, 'delete-result.txt');
     runUninstallCli(

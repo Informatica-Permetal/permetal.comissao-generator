@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompanyProfile } from '@shared/types/companyProfile';
-import { openDatabase } from '../storage/database';
+import { openTestDatabase } from '../storage/testDatabase';
 import { getBatchById } from '../storage/batchRepository';
 import { getDocumentById, listDocumentsByBatch } from '../storage/documentRepository';
 import { createFixtureDir, removeFixtureDir, writeFixtureWorkbook } from '../reports/testSupport/xlsxFixtures';
@@ -79,7 +79,7 @@ let db: DatabaseSync;
 beforeEach(() => {
   reportRoot = createFixtureDir('fc-delete-root-');
   sourceDir = createFixtureDir('fc-delete-source-');
-  db = openDatabase(join(reportRoot, 'app.db'));
+  db = openTestDatabase(join(reportRoot, 'app.db'));
 });
 
 afterEach(() => {

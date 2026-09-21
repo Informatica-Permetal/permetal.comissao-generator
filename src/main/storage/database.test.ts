@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { openDatabase } from './database';
+import { openTestDatabase } from './testDatabase';
 
 describe('openDatabase', () => {
   let baseDir: string;
@@ -19,13 +19,13 @@ describe('openDatabase', () => {
   });
 
   it('creates the database file and parent folder even with a space in the path', () => {
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     db.close();
     expect(existsSync(dbPath)).toBe(true);
   });
 
   it('creates the baseline schema (settings, company_profiles, batches, documents)', () => {
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
       .all() as { name: string }[];
@@ -38,12 +38,12 @@ describe('openDatabase', () => {
   });
 
   it('is idempotent across repeated opens (safe to run migrations again on every startup)', () => {
-    openDatabase(dbPath).close();
-    expect(() => openDatabase(dbPath).close()).not.toThrow();
+    openTestDatabase(dbPath).close();
+    expect(() => openTestDatabase(dbPath).close()).not.toThrow();
   });
 
   it('adds company_groups and company_profiles.group_key on a brand new database', () => {
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
       .all() as { name: string }[];
@@ -88,7 +88,7 @@ describe('openDatabase', () => {
     ).run();
     legacyDb.close();
 
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     const columns = db.prepare('PRAGMA table_info(company_profiles)').all() as { name: string }[];
     const preExisting = db.prepare('SELECT * FROM company_profiles WHERE branch_code = ?').get('0103') as
       | Record<string, unknown>
@@ -103,7 +103,7 @@ describe('openDatabase', () => {
   });
 
   it('adds documents.grouping_mode and the document_branches table on a brand new database', () => {
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
       .all() as { name: string }[];
@@ -150,7 +150,7 @@ describe('openDatabase', () => {
     ).run();
     legacyDb.close();
 
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     const documentColumns = db.prepare('PRAGMA table_info(documents)').all() as { name: string }[];
     const document = db.prepare('SELECT * FROM documents WHERE id = ?').get('doc-1') as Record<string, unknown>;
     const branches = db
@@ -173,7 +173,7 @@ describe('openDatabase', () => {
   });
 
   it('remove document_branches automaticamente quando o documento correspondente e excluido (cascade)', () => {
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     db.prepare(
       `INSERT INTO batches (id, mode, source_original_name, source_hash, imported_at, source_row_count, output_count, status, app_version)
        VALUES ('batch-1', 'Relacao', 'relacao.xlsx', 'hash', '2026-06-01T00:00:00.000Z', 1, 1, 'completed', '1.0.0')`
@@ -230,7 +230,7 @@ describe('openDatabase', () => {
     ).run();
     legacyDb.close();
 
-    const db = openDatabase(dbPath);
+    const db = openTestDatabase(dbPath);
     const branch = db
       .prepare('SELECT * FROM document_branches WHERE document_id = ?')
       .get('doc-null') as Record<string, unknown>;
@@ -292,7 +292,7 @@ describe('openDatabase', () => {
     ).run();
     legacyDb.close();
 
-    expect(() => openDatabase(dbPath)).toThrow();
+    expect(() => openTestDatabase(dbPath)).toThrow();
 
     // Reabre com uma conexao totalmente nova para ler o estado REAL persistido em disco,
     // nao um cache em memoria da conexao que falhou.

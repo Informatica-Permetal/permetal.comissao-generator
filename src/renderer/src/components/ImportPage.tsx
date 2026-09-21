@@ -273,7 +273,7 @@ function ImportErrorMessage({
   }
 }
 
-function PreviewSummary({
+export function PreviewSummary({
   preview,
   onConfirm,
   onCancel,
@@ -363,11 +363,11 @@ function PreviewSummary({
                   {preview.multiBranchSellers.length > 1 && (
                     <button
                       type="button"
-                      className="btn btn--sm btn--ghost"
+                      className="btn btn--sm"
                       onClick={() => applyToAll(mode)}
-                      title="Aplicar esta escolha a todos os vendedores multi-filial"
+                      title="Aplicar esta escolha a todos os vendedores com múltiplas filiais"
                     >
-                      Aplicar esta escolha a todos
+                      Aplicar a todos
                     </button>
                   )}
                 </div>

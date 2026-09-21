@@ -1,5 +1,29 @@
 # Changelog - Formatador Comissão
 
+## 1.2.1 - 2026-09-21
+
+Refinamento visual dos relatórios PDF e pequenos ajustes de interface. Nenhuma regra financeira, cálculo, agrupamento ou contrato de dados foi alterado nesta versão.
+
+### Relatórios PDF
+
+- Refinamento do cabeçalho global dos relatórios para integrar melhor título, contexto e informações do documento.
+- Em relatórios consolidados, "Consolidado por vendedor" passou a ter hierarquia própria, evitando quebra visual ruim no título.
+- Blocos de filial refinados para integrar visualmente logo, identificação da unidade e respectiva tabela.
+- Correção de pequenos desalinhamentos nas bordas e cantos dos blocos de filial.
+
+### Interface
+
+- A ação "Aplicar esta escolha a todos" foi simplificada para "Aplicar a todos".
+- O botão "Aplicar a todos" agora mantém aparência clara de ação mesmo sem hover.
+
+### Interno
+
+- Ambientes de desenvolvimento (DEV) e homologação empacotada (HOMOLOGATION) agora isolados dos dados de produção.
+- Homologação passou a poder ser testada num build empacotado sem gerar um Setup.
+- Releases oficiais agora são publicadas automaticamente via GitHub Actions a partir de uma tag.
+
+---
+
 ## 1.2.0 - 2026-09-18
 
 Ajuste pontual de identidade visual pós-homologação da v1.1.0. Nenhuma regra financeira, funcionalidade de segurança do desinstalador ou comportamento de paginação foi alterado nesta versão.

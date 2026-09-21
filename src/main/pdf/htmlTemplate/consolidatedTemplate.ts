@@ -83,21 +83,23 @@ export function buildPrevisaoConsolidatedHtmlDocument(
       return `
         ${divider}
         <section class="branch-section">
-          ${buildDocumentHeaderHtml(branch.company)}
-          <table>
-            <colgroup>
-              ${PREVISAO_COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
-            </colgroup>
-            <thead>
-              ${buildBranchTableContextRowHtml(branch.branchCode, branch.branchName, PREVISAO_COLUMNS.length)}
-              <tr>
-                ${PREVISAO_COLUMNS.map((c) => `<th${c.numeric ? ' class="num"' : ''}>${escapeHtml(c.label)}</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
+          <div class="branch-block">
+            ${buildDocumentHeaderHtml(branch.company)}
+            <table>
+              <colgroup>
+                ${PREVISAO_COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
+              </colgroup>
+              <thead>
+                ${buildBranchTableContextRowHtml(branch.branchCode, branch.branchName, PREVISAO_COLUMNS.length)}
+                <tr>
+                  ${PREVISAO_COLUMNS.map((c) => `<th${c.numeric ? ' class="num"' : ''}>${escapeHtml(c.label)}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </div>
           ${buildSubtotalBlockHtml(`Subtotal - Filial ${branch.branchCode}`, branch.subtotal)}
         </section>
       `;
@@ -112,8 +114,10 @@ export function buildPrevisaoConsolidatedHtmlDocument(
     <style>${BASE_CSS}</style>
   </head>
   <body>
-    ${buildConsolidatedCoverHtml('Previsão de Comissões — Consolidado por Vendedor', 'Relatório de previsão para conferência', motifDataUri)}
-    ${buildConsolidatedMetaHtml(vm.identity, generatedAtLabel)}
+    <div class="doc-header-block">
+      ${buildConsolidatedCoverHtml('Previsão de Comissões', 'Consolidado por vendedor', motifDataUri)}
+      ${buildConsolidatedMetaHtml(vm.identity, generatedAtLabel)}
+    </div>
     ${branchesHtml}
     ${buildTotalBlockHtml('Total da Previsão', vm.total)}
     ${buildSignatureBlockHtml()}
@@ -149,21 +153,23 @@ export function buildRelacaoConsolidatedHtmlDocument(
       return `
         ${divider}
         <section class="branch-section">
-          ${buildDocumentHeaderHtml(branch.company)}
-          <table>
-            <colgroup>
-              ${RELACAO_COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
-            </colgroup>
-            <thead>
-              ${buildBranchTableContextRowHtml(branch.branchCode, branch.branchName, RELACAO_COLUMNS.length)}
-              <tr>
-                ${RELACAO_COLUMNS.map((c) => `<th${c.numeric ? ' class="num"' : ''}>${escapeHtml(c.label)}</th>`).join('')}
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
+          <div class="branch-block">
+            ${buildDocumentHeaderHtml(branch.company)}
+            <table>
+              <colgroup>
+                ${RELACAO_COLUMNS.map((c) => `<col style="width:${c.width}" />`).join('')}
+              </colgroup>
+              <thead>
+                ${buildBranchTableContextRowHtml(branch.branchCode, branch.branchName, RELACAO_COLUMNS.length)}
+                <tr>
+                  ${RELACAO_COLUMNS.map((c) => `<th${c.numeric ? ' class="num"' : ''}>${escapeHtml(c.label)}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </div>
           ${buildSubtotalBlockHtml(`Subtotal - Filial ${branch.branchCode}`, branch.subtotal)}
         </section>
       `;
@@ -178,8 +184,10 @@ export function buildRelacaoConsolidatedHtmlDocument(
     <style>${BASE_CSS}</style>
   </head>
   <body>
-    ${buildConsolidatedCoverHtml('Relação de Comissões — Consolidado por Vendedor', 'Comissões para conferência e pagamento', motifDataUri)}
-    ${buildConsolidatedMetaHtml(vm.identity, generatedAtLabel)}
+    <div class="doc-header-block">
+      ${buildConsolidatedCoverHtml('Relação de Comissões', 'Consolidado por vendedor', motifDataUri)}
+      ${buildConsolidatedMetaHtml(vm.identity, generatedAtLabel)}
+    </div>
     ${branchesHtml}
     ${buildTotalBlockHtml('Total da Comissão', vm.total)}
     ${buildSignatureBlockHtml()}

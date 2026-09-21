@@ -81,7 +81,31 @@ export const BASE_CSS = `
     color: #666;
   }
 
-  /* ---------- Consolidado cover (first-page title, no branch identity) ---------- */
+  /* ---------- Unified global header (cover title/motif + metadata as ONE visual block,
+     never two pieces split by a hard rule) - this whole block is always short/fixed-height
+     (a title, a subtitle, one row of metadata), so unlike .branch-block below it can never
+     span a page break - overflow:hidden + border-radius is safe here. */
+  .doc-header-block {
+    border: 1px solid #e5e7e9;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 18px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    break-after: avoid-page;
+  }
+  .doc-header-block .doc-cover {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding: 18px 20px 16px;
+  }
+  .doc-header-block .doc-meta {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+  }
+
+  /* ---------- Consolidado cover (title/motif tier of .doc-header-block) ---------- */
   .doc-cover {
     display: flex;
     justify-content: space-between;
@@ -95,17 +119,26 @@ export const BASE_CSS = `
     break-after: avoid-page;
   }
   .doc-cover__text { flex: 1 1 auto; min-width: 0; }
+  /* Title and variant/context are two deliberately distinct typographic tiers, never one
+     long string combining the report mode and the consolidado variant - that concatenation
+     is what used to force an ugly line break here. The title alone (just the mode name) is
+     always short enough to fit on one line at this size. */
   .doc-cover__text h1 {
-    font-size: 19px;
-    letter-spacing: 0.6px;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.4px;
     margin: 0;
     text-transform: uppercase;
     color: #111;
   }
   .doc-cover__text p {
-    margin: 5px 0 0;
-    font-size: 10px;
-    color: #666;
+    margin: 4px 0 0;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0.1px;
+    color: #6b7280;
   }
   /* Full banner, fade intact (not cropped) - the one place this document shows the
      "arte industrial" treatment the photo was composed for, blending into the page. */
@@ -243,6 +276,27 @@ export const BASE_CSS = `
   .branch-section {
     margin-top: 22px;
   }
+  /* Wraps a branch's own header (logo + company) and its table as one visual group, instead
+     of two floating pieces - ONE border declared here only (never also on the nested
+     .doc-header below), so there is exactly one border path with no risk of two adjacent,
+     slightly-offset lines/corners (the header sits inset inside this box's own content edge,
+     so a second border on it would never align pixel-for-pixel with this one). Deliberately
+     NO overflow:hidden and only top corners rounded (bottom stays square): this box can span
+     several printed pages (a filial's table is often taller than one page - see the
+     no-break-inside-avoid comment above for the real pagination bug that caused), and clipping
+     overflow on a page-spanning box risks corrupting that; a plain border with border-radius
+     but no overflow:hidden prints correctly across page breaks with no such risk - the corners
+     are simply square wherever this box continues onto a later page. */
+  .branch-block {
+    border: 1px solid #e5e7e9;
+    border-radius: 8px 8px 0 0;
+  }
+  .branch-block .doc-header {
+    border: none;
+    margin-bottom: 0;
+    padding: 14px 16px 12px;
+  }
+  .branch-block table { margin: 0; }
   /* Deliberately no break-inside:avoid-page here: a real filial section is very often taller
      than a single page (its own header and subtotal already have their own break protection
      below), and forcing the whole section to avoid splitting only pushes it to start on a fresh

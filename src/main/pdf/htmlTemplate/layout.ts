@@ -96,6 +96,14 @@ export function buildTitleHtml(title: string, subtitle: string): string {
  * with the same industrial motif used in every branch's own letterhead, so
  * the document opens with a consistent visual identity before any specific
  * filial is shown.
+ *
+ * `title` and `subtitle` are deliberately kept semantically separate (never
+ * concatenated by the caller into one long string, e.g. "Previsão de
+ * Comissões — Consolidado por Vendedor") - `title` is just the mode name
+ * ("Previsão de Comissões"/"Relação de Comissões"), always short enough to
+ * never wrap even at this cover's larger type size; `subtitle` carries the
+ * variant/context ("Consolidado por vendedor"), rendered smaller and lighter
+ * as a clearly secondary line.
  */
 export function buildConsolidatedCoverHtml(title: string, subtitle: string, motifDataUri: string | null = null): string {
   return `

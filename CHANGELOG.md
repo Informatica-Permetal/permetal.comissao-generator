@@ -1,6 +1,6 @@
 # Changelog - Formatador Comissão
 
-## 1.2.2 - 2026-09-21
+## 1.2.3 - 2026-09-21
 
 Refinamento visual dos relatórios PDF e pequenos ajustes de interface. Nenhuma regra financeira, cálculo, agrupamento ou contrato de dados foi alterado nesta versão.
 
@@ -20,10 +20,12 @@ Refinamento visual dos relatórios PDF e pequenos ajustes de interface. Nenhuma 
 
 - Ambientes DEV e HOMOLOGATION isolados dos dados de produção.
 - Homologação empacotada sem necessidade de gerar Setup.
-- Pipeline de CI/Release estabilizado em Node 24.21.0.
+- Pipeline de CI/Release estabilizado em Node 24.21.0, eliminando falha intermitente do observador de arquivos em runners Windows.
 - CI automático em main antes da criação das próximas tags.
+- Publicação implícita do electron-builder desativada, deixando a criação da Release exclusivamente a cargo do próprio pipeline.
+- Testes que gravam no SQLite otimizados para runners de CI mais lentos, eliminando timeout intermitente sem alterar o comportamento de gravação em produção.
 
-_Nota técnica: a versão 1.2.1 teve sua publicação interrompida pelo pipeline antes da geração de qualquer Release; a publicação oficial dessas melhorias ocorre na 1.2.2._
+_Nota técnica: as versões 1.2.1 e 1.2.2 tiveram sua publicação interrompida pelo pipeline antes da geração de qualquer Release; a publicação oficial dessas melhorias ocorre na 1.2.3._
 
 ---
 

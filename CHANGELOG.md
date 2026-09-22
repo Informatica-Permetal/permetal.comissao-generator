@@ -1,5 +1,14 @@
 # Changelog - Formatador Comissão
 
+## 1.2.4 - 2026-09-22
+
+### Identidade visual
+
+- Novo ícone oficial do Formatador Comissão.
+- O novo ícone passa a identificar o aplicativo e os elementos do Windows associados ao executável/instalação.
+
+---
+
 ## 1.2.3 - 2026-09-21
 
 Refinamento visual dos relatórios PDF e pequenos ajustes de interface. Nenhuma regra financeira, cálculo, agrupamento ou contrato de dados foi alterado nesta versão.
